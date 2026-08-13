@@ -127,6 +127,7 @@ Or in cmd: `mklink /J test_project\addons\godot_ai ..\..\plugin\addons\godot_ai`
 
 **When troubleshooting any dev-environment / setup / dependency / symlink issue, scan `script/` first** for an existing fixer before doing it by hand. The project ships scripts for a reason — bypassing them re-introduces the bugs they were written to handle.
 
+- Using the one-shot CLI from an external Agent to inspect or mutate a Godot project: [docs/agent-cli-workflow.md](docs/agent-cli-workflow.md).
 - Server start/adopt/teardown, discovery tiers, `editor_reload_plugin`: [docs/server-lifecycle.md](docs/server-lifecycle.md)
 - Cutting a release, and the self-update install path: [docs/releasing.md](docs/releasing.md).
   **Any change touching `mcp_dock.gd` update paths, `update_reload_runner.gd`, plugin
