@@ -113,12 +113,22 @@ def main(argv: Sequence[str] | None = None) -> None:
 
         attach_main(effective_argv[1:])
         return
+    if effective_argv[:1] and effective_argv[0] in {"call", "status", "tools"}:
+        from godot_ai.oneshot import main as oneshot_main
+
+        oneshot_main(effective_argv)
+        return
 
     parser = argparse.ArgumentParser(
         description="Godot AI server",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
-            "Client-owned bridge: godot-ai attach [--port PORT] [--ws-port PORT] "
-            "[--exclude-domains LIST]. Run 'godot-ai attach --help' for details."
+            "Client-owned bridge:\n"
+            "  godot-ai attach [--port PORT] [--ws-port PORT] [--exclude-domains LIST]\n"
+            "One-shot automation:\n"
+            "  godot-ai status --json\n"
+            "  godot-ai tools --json\n"
+            "  godot-ai call <tool> --args '{...}'"
         ),
     )
     parser.add_argument(
