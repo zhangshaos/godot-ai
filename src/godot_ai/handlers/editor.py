@@ -44,7 +44,14 @@ _pending_reload_tasks: set[asyncio.Task] = set()
 
 
 async def editor_health(runtime: DirectRuntime) -> dict:
-    """Return compact backend and active/pinned editor health state."""
+    """Return backend + cached editor health without a live editor round-trip.
+
+    Health is the recovery/diagnostic entry point. If Godot's main thread is
+    blocked (notably during a .NET build), making health call editor_state
+    would make the health check hang behind the same failure it is meant to
+    diagnose. Session presence is authoritative for WebSocket registration;
+    editor_state remains the explicit live probe when the editor is responsive.
+    """
     session = runtime.get_active_session()
     if session is None:
         return {
@@ -54,16 +61,27 @@ async def editor_health(runtime: DirectRuntime) -> dict:
             "project_name": None,
             "current_scene": None,
             "readiness": None,
+            "play_state": None,
+            "game_status": {},
+            "helper_live": None,
+            "last_seen": None,
+            "live_probe": False,
         }
 
-    state = await editor_state(runtime)
+    game_status = session.game_status.copy()
+    helper_live = game_status.get("helper_live") if game_status else None
     return {
         "backend_running": True,
         "editor_connected": True,
         "session_id": session.session_id,
-        "project_name": state.get("project_name"),
-        "current_scene": state.get("current_scene"),
-        "readiness": state.get("readiness", session.readiness),
+        "project_name": session.project_name or session.name,
+        "current_scene": session.current_scene or None,
+        "readiness": session.readiness,
+        "play_state": session.play_state,
+        "game_status": game_status,
+        "helper_live": helper_live,
+        "last_seen": session.last_seen.isoformat(),
+        "live_probe": False,
     }
 
 
@@ -87,6 +105,14 @@ async def editor_state(runtime: DirectRuntime) -> dict:
     """
     result = await runtime.send_command("get_editor_state")
     sync_readiness_from_snapshot(runtime, result.get("readiness"))
+    session = runtime.get_active_session()
+    if session is not None:
+        session.project_name = str(result.get("project_name", session.project_name))
+        session.current_scene = str(result.get("current_scene", session.current_scene))
+        session.play_state = "playing" if bool(result.get("is_playing", False)) else "stopped"
+        game_status = result.get("game_status")
+        if isinstance(game_status, dict):
+            session.game_status = game_status.copy()
     return result
 
 

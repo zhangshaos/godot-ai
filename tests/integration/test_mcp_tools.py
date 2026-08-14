@@ -31,6 +31,11 @@ class TestNoActiveSessionDiagnostics:
             "project_name": None,
             "current_scene": None,
             "readiness": None,
+            "play_state": None,
+            "game_status": {},
+            "helper_live": None,
+            "last_seen": None,
+            "live_probe": False,
         }
 
     async def test_tool_error_explains_missing_editor_session(self):
@@ -367,35 +372,24 @@ class TestSceneSaveAsTool:
 
 
 class TestEditorHealthTool:
-    async def test_returns_compact_health(self, mcp_stack):
+    async def test_returns_cached_health_without_editor_round_trip(self, mcp_stack):
         client, plugin = mcp_stack
 
-        async def respond():
-            cmd = await plugin.recv_command()
-            assert cmd["command"] == "get_editor_state"
-            await plugin.send_response(
-                cmd["request_id"],
-                {
-                    "godot_version": "4.4.1",
-                    "project_name": "TestGame",
-                    "current_scene": "res://main.tscn",
-                    "is_playing": False,
-                    "readiness": "ready",
-                },
-            )
-
-        task = asyncio.create_task(respond())
         result = await client.call_tool("editor_manage", {"op": "health", "params": {}})
-        await task
 
-        assert result.data == {
-            "backend_running": True,
-            "editor_connected": True,
-            "session_id": "mcp-test",
-            "project_name": "TestGame",
-            "current_scene": "res://main.tscn",
-            "readiness": "ready",
-        }
+        assert result.data["backend_running"] is True
+        assert result.data["editor_connected"] is True
+        assert result.data["session_id"] == "mcp-test"
+        assert result.data["project_name"] == "test_project"
+        assert result.data["current_scene"] is None
+        assert result.data["readiness"] == "ready"
+        assert result.data["play_state"] == "stopped"
+        assert result.data["game_status"] == {}
+        assert result.data["helper_live"] is None
+        assert result.data["live_probe"] is False
+        assert isinstance(result.data["last_seen"], str)
+        with pytest.raises(TimeoutError):
+            await plugin.recv_command(timeout=0.05)
 
 
 # ---------------------------------------------------------------------------

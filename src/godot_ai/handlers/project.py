@@ -12,6 +12,9 @@ from godot_ai.godot_client.session_diagnostics import (
 from godot_ai.handlers._readiness import require_writable_async, sync_readiness_from_snapshot
 from godot_ai.runtime.direct import DirectRuntime
 
+PROJECT_RUN_TIMEOUT_SEC = 15.0
+
+
 COMMON_SETTINGS = [
     "application/config/name",
     "application/config/description",
@@ -39,7 +42,19 @@ async def project_run(
         params["scene"] = scene
     if not autosave:
         params["autosave"] = False
-    return await runtime.send_command("run_project", params)
+    ## Running a .NET project can synchronously spend several seconds inside
+    ## EditorInterface.play_*_scene() while Godot builds/autosaves before the
+    ## game process can answer. Keep this command's budget wider than the
+    ## generic 5s editor round-trip without changing global transport timeouts.
+    result = await runtime.send_command("run_project", params, timeout=PROJECT_RUN_TIMEOUT_SEC)
+    session = runtime.get_active_session()
+    if session is not None:
+        game_status = result.get("game_status")
+        if isinstance(game_status, dict):
+            session.game_status = game_status.copy()
+            if str(game_status.get("status", "")) not in {"", "stopped"}:
+                session.play_state = "playing"
+    return result
 
 
 async def project_stop(runtime: DirectRuntime) -> dict:
@@ -59,6 +74,14 @@ async def project_stop(runtime: DirectRuntime) -> dict:
     EDITOR_NOT_READY.
     """
     result = await runtime.send_command("stop_project")
+    session = runtime.get_active_session()
+    if session is not None:
+        session.play_state = "stopped"
+        session.game_status = {
+            "status": "stopped",
+            "helper_live": False,
+            "session_active": False,
+        }
     if sync_readiness_from_snapshot(runtime, result.get("readiness_after")):
         return result
 

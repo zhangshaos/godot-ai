@@ -60,8 +60,11 @@ def register_project_tools(mcp: FastMCP) -> None:
         ``data.was_already_running=true`` (no scene switch). To switch scenes,
         call ``project_manage(op="stop")`` first, then ``project_run`` again.
 
-        After starting playback, waits briefly for the Godot AI game helper to
-        check in. The response includes ``game_status``, ``helper_live``
+        After Godot's synchronous play call returns (including any editor-side
+        C# build/autosave work), waits briefly for the Godot AI game helper to
+        check in. ``game_status.prelaunch_msec`` separates that editor-side
+        launch latency from ``ready_elapsed_msec`` spent waiting for the helper.
+        The response includes ``game_status``, ``helper_live``}]}
         (status == "live"), ``session_active`` (status not in {"not_live",
         "stopped"}), and any ``recent_errors`` observed during the run window.
         The top-level booleans mirror the same fields inside ``game_status``.

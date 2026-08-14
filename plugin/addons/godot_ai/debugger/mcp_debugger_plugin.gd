@@ -87,6 +87,11 @@ var _game_session_id := -1
 var _game_run_active := false
 var _manual_run_armed := false
 var _game_run_started_msec := 0
+## Start of the helper-ready grace window. MCP-initiated runs reset this after
+## EditorInterface.play_*_scene() returns so C# build/autosave/launch latency
+## is not misclassified as a game-helper startup timeout. Manual runs keep the
+## run-start timestamp because there is no MCP play-call boundary to observe.
+var _game_ready_wait_started_msec := 0
 var _game_run_started_editor_cursor := 0
 var _game_run_started_debugger_cursor := 0
 var _game_helper_expected := true
@@ -166,6 +171,7 @@ func _begin_game_run_tracking(
 	_game_session_id = -1
 	clear_debug_break()
 	_game_run_started_msec = Time.get_ticks_msec()
+	_game_ready_wait_started_msec = _game_run_started_msec
 	_game_run_started_editor_cursor = maxi(0, editor_log_cursor)
 	if _surfaced_error_tracker != null:
 		_surfaced_error_tracker.note_game_run_started(sticky_debugger_scan)
@@ -187,12 +193,27 @@ func _editor_log_cursor() -> int:
 	return _editor_log_buffer.appended_total() if _editor_log_buffer != null else 0
 
 
+## Reset the helper-ready grace window after the synchronous editor play call
+## returns. That call may spend seconds building a C# project while the game
+## process has not had a chance to register mcp:hello yet.
+func begin_helper_ready_wait() -> void:
+	if not _game_run_active:
+		return
+	_game_ready_wait_started_msec = Time.get_ticks_msec()
+	if _log_buffer:
+		_log_buffer.log(
+			"[debug] helper-ready wait started after editor play call (prelaunch_ms=%d)"
+			% maxi(0, _game_ready_wait_started_msec - _game_run_started_msec)
+		)
+
+
 func end_game_run() -> void:
 	_game_run_active = false
 	_manual_run_armed = false
 	_game_ready = false
 	_ready_run_token = -1
 	_game_session_id = -1
+	_game_ready_wait_started_msec = 0
 	clear_debug_break()
 	if _surfaced_error_tracker != null:
 		_surfaced_error_tracker.note_game_run_stopped()
@@ -445,6 +466,11 @@ func get_game_status(now_msec: int = -1, ready_wait_sec: float = GAME_READY_WAIT
 	var resolved_now := Time.get_ticks_msec() if now_msec < 0 else now_msec
 	var ready_wait_msec := maxi(0, int(ready_wait_sec * 1000.0))
 	var elapsed_msec := maxi(0, resolved_now - _game_run_started_msec) if _game_run_active else 0
+	var ready_elapsed_msec := (
+		maxi(0, resolved_now - _game_ready_wait_started_msec)
+		if _game_run_active
+		else 0
+	)
 	## "stopped" also covers idle/never-ran; no game run is currently active.
 	var status := "stopped"
 	if _game_run_active:
@@ -457,7 +483,7 @@ func get_game_status(now_msec: int = -1, ready_wait_sec: float = GAME_READY_WAIT
 			status = "live"
 		elif not _game_helper_expected:
 			status = "no_helper"
-		elif elapsed_msec >= ready_wait_msec:
+		elif ready_elapsed_msec >= ready_wait_msec:
 			status = "not_live"
 		else:
 			status = "launching"
@@ -469,6 +495,13 @@ func get_game_status(now_msec: int = -1, ready_wait_sec: float = GAME_READY_WAIT
 		"helper_expected": _game_helper_expected,
 		"run_started_msec": _game_run_started_msec,
 		"elapsed_msec": elapsed_msec,
+		"ready_wait_started_msec": _game_ready_wait_started_msec,
+		"ready_elapsed_msec": ready_elapsed_msec,
+		"prelaunch_msec": (
+			maxi(0, _game_ready_wait_started_msec - _game_run_started_msec)
+			if _game_run_active
+			else 0
+		),
 		"ready_wait_msec": ready_wait_msec,
 		"editor_log_cursor": _game_run_started_editor_cursor,
 	}

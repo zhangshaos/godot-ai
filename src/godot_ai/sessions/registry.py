@@ -44,8 +44,13 @@ class Session:
     plugin_version: str
     protocol_version: int = 1
     current_scene: str = ""
+    project_name: str = ""
     play_state: str = "stopped"
     readiness: str = "ready"
+    ## Last game-liveness snapshot returned by editor_state/project_run.
+    ## Health reads this cache instead of issuing a live round-trip, so the
+    ## backend remains diagnosable while the Godot editor main thread is hung.
+    game_status: dict = field(default_factory=dict)
     error_watermark: dict[str, int] = field(default_factory=dict)
     pending_new_errors: int = 0
     ## Warnings ride a channel parallel to pending_new_errors: the plugin's
@@ -94,8 +99,10 @@ class Session:
             "server_version": _SERVER_VERSION,
             "protocol_version": self.protocol_version,
             "current_scene": self.current_scene,
+            "project_name": self.project_name,
             "play_state": self.play_state,
             "readiness": self.readiness,
+            "game_status": self.game_status.copy(),
             "editor_pid": self.editor_pid,
             "server_launch_mode": self.server_launch_mode,
             "connected_at": self.connected_at.isoformat(),

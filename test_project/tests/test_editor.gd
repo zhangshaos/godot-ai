@@ -2493,11 +2493,11 @@ func test_debugger_plugin_game_status_tracks_run_lifecycle() -> void:
 	status = plugin.get_game_status(plugin._game_run_started_msec)
 	assert_eq(status.status, "launching", "raw ready flag without the current token is stale")
 
-	var after_window := plugin._game_run_started_msec + int(McpDebuggerPlugin.GAME_READY_WAIT_SEC * 1000.0)
+	var after_window := plugin._game_ready_wait_started_msec + int(McpDebuggerPlugin.GAME_READY_WAIT_SEC * 1000.0)
 	status = plugin.get_game_status(after_window - 1)
-	assert_eq(status.status, "launching", "run stays launching until the wait window is exhausted")
+	assert_eq(status.status, "launching", "run stays launching until the helper wait window is exhausted")
 	status = plugin.get_game_status(after_window)
-	assert_eq(status.status, "not_live", "wait window boundary is inclusive")
+	assert_eq(status.status, "not_live", "helper wait window boundary is inclusive")
 	assert_eq(status.editor_log_cursor, 99)
 
 	plugin.end_game_run()
@@ -2505,6 +2505,18 @@ func test_debugger_plugin_game_status_tracks_run_lifecycle() -> void:
 	assert_eq(status.status, "stopped")
 	assert_eq(status.active, false)
 	assert_eq(status.ready, false)
+
+
+func test_debugger_plugin_game_status_separates_prelaunch_and_helper_wait_time() -> void:
+	var plugin := McpDebuggerPlugin.new()
+	plugin.begin_game_run(7, true)
+	var run_start := plugin._game_run_started_msec
+	plugin._game_ready_wait_started_msec = run_start + 5000
+	var status := plugin.get_game_status(run_start + 5500, 3.0)
+	assert_eq(status.status, "launching")
+	assert_eq(status.elapsed_msec, 5500)
+	assert_eq(status.ready_elapsed_msec, 500)
+	assert_eq(status.prelaunch_msec, 5000)
 
 
 func test_debugger_plugin_game_status_reports_no_helper_when_not_expected() -> void:

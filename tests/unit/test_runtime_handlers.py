@@ -2334,29 +2334,43 @@ async def test_editor_health_reports_disconnected_backend_without_editor_call():
         "project_name": None,
         "current_scene": None,
         "readiness": None,
+        "play_state": None,
+        "game_status": {},
+        "helper_live": None,
+        "last_seen": None,
+        "live_probe": False,
     }
     assert client.calls == []
 
 
-async def test_editor_health_reports_live_editor_and_refreshes_readiness():
+async def test_editor_health_uses_cached_session_without_live_editor_call():
     registry = SessionRegistry()
-    session = _make_session("health-001", readiness="playing")
+    session = _make_session(
+        "health-001",
+        readiness="playing",
+        project_name="TestProject",
+        current_scene="res://main.tscn",
+        play_state="playing",
+        game_status={"status": "live", "helper_live": True, "session_active": True},
+    )
     registry.register(session)
     client = StubClient()
     runtime = DirectRuntime(registry=registry, client=client)
 
     result = await editor_handlers.editor_health(runtime)
 
-    assert result == {
-        "backend_running": True,
-        "editor_connected": True,
-        "session_id": "health-001",
-        "project_name": "TestProject",
-        "current_scene": "res://main.tscn",
-        "readiness": "ready",
-    }
-    assert session.readiness == "ready"
-    assert client.calls[-1]["command"] == "get_editor_state"
+    assert result["backend_running"] is True
+    assert result["editor_connected"] is True
+    assert result["session_id"] == "health-001"
+    assert result["project_name"] == "TestProject"
+    assert result["current_scene"] == "res://main.tscn"
+    assert result["readiness"] == "playing"
+    assert result["play_state"] == "playing"
+    assert result["helper_live"] is True
+    assert result["game_status"]["status"] == "live"
+    assert result["live_probe"] is False
+    assert result["last_seen"] == session.last_seen.isoformat()
+    assert client.calls == []
 
 
 async def test_editor_health_respects_bound_session():
@@ -2371,7 +2385,7 @@ async def test_editor_health_respects_bound_session():
 
     assert result["session_id"] == "health-b"
     assert result["editor_connected"] is True
-    assert client.calls[-1]["session_id"] == "health-b"
+    assert client.calls == []
     assert registry.active_session_id == "health-a"
 
 
@@ -2381,6 +2395,35 @@ async def test_editor_state_handler():
     result = await editor_handlers.editor_state(runtime)
     assert result["project_name"] == "TestProject"
     assert client.calls[-1]["command"] == "get_editor_state"
+
+
+async def test_editor_state_refreshes_health_cache():
+    class StateClient(StubClient):
+        async def send(self, command, params=None, session_id=None, timeout=5.0, hint_policy=None):
+            if command == "get_editor_state":
+                return {
+                    "current_scene": "res://cached.tscn",
+                    "project_name": "CachedProject",
+                    "is_playing": True,
+                    "godot_version": "4.6.2",
+                    "readiness": "playing",
+                    "game_status": {"status": "live", "helper_live": True, "session_active": True},
+                }
+            return await super().send(command, params, session_id, timeout, hint_policy)
+
+    registry = SessionRegistry()
+    session = _make_session("cache-001")
+    registry.register(session)
+    runtime = DirectRuntime(registry=registry, client=StateClient())
+
+    await editor_handlers.editor_state(runtime)
+
+    assert session.project_name == "CachedProject"
+    assert session.current_scene == "res://cached.tscn"
+    assert session.play_state == "playing"
+    assert session.readiness == "playing"
+    assert session.game_status["status"] == "live"
+    assert session.game_status["helper_live"] is True
 
 
 async def test_editor_quit_handler():
@@ -3932,6 +3975,39 @@ async def test_project_run_handler_default_mode():
     assert result["mode"] == "main"
     assert client.calls[-1]["command"] == "run_project"
     assert client.calls[-1]["params"] == {"mode": "main"}
+    assert client.calls[-1]["timeout"] == project_handlers.PROJECT_RUN_TIMEOUT_SEC
+
+
+async def test_project_run_updates_cached_game_status_even_when_helper_not_live():
+    class RunClient(StubClient):
+        async def send(self, command, params=None, session_id=None, timeout=5.0, hint_policy=None):
+            self.calls.append({
+                "command": command,
+                "params": params,
+                "session_id": session_id,
+                "timeout": timeout,
+                "hint_policy": hint_policy,
+            })
+            return {
+                "mode": "main",
+                "game_status": {
+                    "status": "not_live",
+                    "helper_live": False,
+                    "session_active": False,
+                },
+                "helper_live": False,
+                "session_active": False,
+            }
+
+    registry = SessionRegistry()
+    session = _make_session("run-cache")
+    registry.register(session)
+    runtime = DirectRuntime(registry=registry, client=RunClient())
+
+    await project_handlers.project_run(runtime)
+
+    assert session.game_status["status"] == "not_live"
+    assert session.play_state == "playing"
 
 
 async def test_project_run_handler_current_mode():

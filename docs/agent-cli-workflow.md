@@ -64,9 +64,9 @@ Agent 操作 Godot Editor 时遵循：
 
 ## 3. Session 与 Scene 安全
 
-写操作前优先调用 `editor_manage(op="health")` 做紧凑健康检查，再调用 `editor_state` 读取实时 Editor / game 状态。至少确认 `editor_connected`、`project_name`、`current_scene`、`readiness` 和运行状态；不能把 `backend_running=true` 当成 Editor 已连接且可写。
+写操作前优先调用 `editor_manage(op="health")` 做紧凑健康检查，再调用 `editor_state` 读取实时 Editor / game 状态。`health` 只读 server-side session cache，不向 Godot Editor 发起新的 round-trip，因此即使 Editor 主线程因 build/import 等原因阻塞，它仍可用于区分 MCP backend 是否存活、是否仍登记着 Editor session，以及最后已知的 readiness / play / helper 状态；需要确认 Editor 当前是否真的可响应时再调用 `editor_state`。至少确认 `editor_connected`、`project_name`、`current_scene`、`readiness` 和运行状态；不能把 `backend_running=true` 当成 Editor 已连接且可写。
 
-如果可能同时打开多个 Godot Editor，先执行 `session_manage(op="list")`，之后显式传入 `session_id`。对于 `<domain>_manage`，`session_id` 与 `op`、`params` 同级，不放进 `params`。
+如果可能同时打开多个 Godot Editor，先执行 `session_manage(op="list")`，之后显式传入 `session_id`。`session_id` 是一次 WebSocket 注册生命周期内的临时标识；Editor/plugin 重连后必须重新 `list`，不要跨重连缓存旧 id。对于 `<domain>_manage`，`session_id` 与 `op`、`params` 同级，不放进 `params`。
 
 CLI fallback 中对应写法例如：
 

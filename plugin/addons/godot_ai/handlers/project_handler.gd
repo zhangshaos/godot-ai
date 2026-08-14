@@ -213,6 +213,12 @@ func run_project(params: Dictionary) -> Dictionary:
 			var scene_path: String = params.get("scene", "")
 			EditorInterface.play_custom_scene(scene_path)
 
+	## play_* may synchronously spend seconds building C# and autosaving before
+	## the game process can possibly emit mcp:hello. Start the helper-ready grace
+	## window only after that editor-side launch work returns.
+	if _debugger_plugin != null:
+		_debugger_plugin.begin_helper_ready_wait()
+
 	if restore_setting:
 		editor_settings.set_setting(autosave_key, prior_autosave)
 
@@ -384,6 +390,7 @@ static func _run_project_liveness_decision(status: Dictionary, errors_info: Dict
 		errors_scope = "none"
 	var correlated_error := not recent_errors.is_empty() and errors_scope == "run"
 	var elapsed_msec := int(status.get("elapsed_msec", 0))
+	var ready_elapsed_msec := int(status.get("ready_elapsed_msec", elapsed_msec))
 	var ready_wait_msec := int(status.get("ready_wait_msec", int(RUN_READY_WAIT_SEC * 1000.0)))
 	var decision := {
 		"resolve": false,
@@ -422,7 +429,7 @@ static func _run_project_liveness_decision(status: Dictionary, errors_info: Dict
 		var break_info: Dictionary = status.get("break", {})
 		var break_reason := str(break_info.get("reason", ""))
 		if bool(break_info.get("pre_live", true)):
-			decision["resolve"] = correlated_error or elapsed_msec >= ready_wait_msec
+			decision["resolve"] = correlated_error or ready_elapsed_msec >= ready_wait_msec
 			var summary := break_reason
 			if correlated_error:
 				summary = _format_editor_error_summary(recent_errors[0])
@@ -451,7 +458,7 @@ static func _run_project_liveness_decision(status: Dictionary, errors_info: Dict
 	elif state == "stopped":
 		decision["resolve"] = true
 		decision["message"] = "The play session stopped, or no active game liveness run exists, before the Godot AI game helper became live."
-	elif state == "launching" and elapsed_msec >= ready_wait_msec:
+	elif state == "launching" and ready_elapsed_msec >= ready_wait_msec:
 		decision["resolve"] = true
 		decision["message"] = "Game launched but is not yet live after %.1fs; it may still be booting. Poll editor_state and check logs_read(source='editor', include_details=true)." % (float(elapsed_msec) / 1000.0)
 	return decision

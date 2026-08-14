@@ -28,8 +28,10 @@ Resource forms (prefer for active-session reads):
 
 Ops:
   • health()
-        Compact backend and active/pinned Editor connectivity/readiness.
-        Succeeds even when no target Godot Editor is connected.
+        Compact backend and active/pinned Editor connectivity/readiness from
+        server-side session cache. Never performs a live Editor round-trip, so
+        it stays usable while the Godot main thread is blocked or reconnecting.
+        Use state() afterward when a live Editor probe is required.
   • state()
         Editor version, project name, current scene, readiness, play state.
   • selection_get()

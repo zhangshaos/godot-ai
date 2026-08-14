@@ -285,7 +285,12 @@ func test_run_project_autosave_false_restores_editor_setting() -> void:
 	editor_settings.set_setting(autosave_key, prior)
 
 
-func _run_status(status: String, elapsed_msec: int = 0, ready_wait_msec: int = 3000) -> Dictionary:
+func _run_status(
+	status: String,
+	elapsed_msec: int = 0,
+	ready_wait_msec: int = 3000,
+	ready_elapsed_msec: int = -1
+) -> Dictionary:
 	return {
 		"status": status,
 		"run_token": 1,
@@ -294,6 +299,7 @@ func _run_status(status: String, elapsed_msec: int = 0, ready_wait_msec: int = 3
 		"helper_expected": status != "no_helper",
 		"run_started_msec": 100,
 		"elapsed_msec": elapsed_msec,
+		"ready_elapsed_msec": elapsed_msec if ready_elapsed_msec < 0 else ready_elapsed_msec,
 		"ready_wait_msec": ready_wait_msec,
 		"editor_log_cursor": 7,
 	}
@@ -305,6 +311,15 @@ func _errors_info(errors: Array[Dictionary] = [], scope: String = "none", trunca
 		"scope": scope,
 		"truncated": truncated,
 	}
+
+
+func test_run_project_liveness_wait_ignores_prelaunch_build_time() -> void:
+	var decision := _handler._run_project_liveness_decision(
+		_run_status("launching", 5000, 3000, 500),
+		_errors_info()
+	)
+	assert_eq(decision.resolve, false,
+		"5s total launch time must not consume the 3s helper window when only 0.5s elapsed after play returned")
 
 
 func test_run_project_liveness_decision_live_short_circuits() -> void:
