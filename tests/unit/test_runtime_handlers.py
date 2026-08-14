@@ -2278,6 +2278,60 @@ def test_register_reclaims_active_after_active_disconnected():
 # ---------------------------------------------------------------------------
 
 
+async def test_editor_health_reports_disconnected_backend_without_editor_call():
+    client = StubClient()
+    runtime = DirectRuntime(registry=SessionRegistry(), client=client)
+
+    result = await editor_handlers.editor_health(runtime)
+
+    assert result == {
+        "backend_running": True,
+        "editor_connected": False,
+        "session_id": None,
+        "project_name": None,
+        "current_scene": None,
+        "readiness": None,
+    }
+    assert client.calls == []
+
+
+async def test_editor_health_reports_live_editor_and_refreshes_readiness():
+    registry = SessionRegistry()
+    session = _make_session("health-001", readiness="playing")
+    registry.register(session)
+    client = StubClient()
+    runtime = DirectRuntime(registry=registry, client=client)
+
+    result = await editor_handlers.editor_health(runtime)
+
+    assert result == {
+        "backend_running": True,
+        "editor_connected": True,
+        "session_id": "health-001",
+        "project_name": "TestProject",
+        "current_scene": "res://main.tscn",
+        "readiness": "ready",
+    }
+    assert session.readiness == "ready"
+    assert client.calls[-1]["command"] == "get_editor_state"
+
+
+async def test_editor_health_respects_bound_session():
+    registry = SessionRegistry()
+    registry.register(_make_session("health-a"))
+    registry.register(_make_session("health-b"))
+    registry.set_active("health-a")
+    client = StubClient()
+    runtime = DirectRuntime(registry=registry, client=client, session_id="health-b")
+
+    result = await editor_handlers.editor_health(runtime)
+
+    assert result["session_id"] == "health-b"
+    assert result["editor_connected"] is True
+    assert client.calls[-1]["session_id"] == "health-b"
+    assert registry.active_session_id == "health-a"
+
+
 async def test_editor_state_handler():
     client = StubClient()
     runtime = DirectRuntime(registry=SessionRegistry(), client=client)

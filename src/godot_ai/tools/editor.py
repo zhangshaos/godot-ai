@@ -27,6 +27,9 @@ Resource forms (prefer for active-session reads):
   godot://editor/state, godot://selection/current, godot://performance
 
 Ops:
+  • health()
+        Compact backend and active/pinned Editor connectivity/readiness.
+        Succeeds even when no target Godot Editor is connected.
   • state()
         Editor version, project name, current scene, readiness, play state.
   • selection_get()
@@ -298,6 +301,7 @@ def register_editor_tools(mcp: FastMCP, *, include_non_core: bool = True) -> Non
         tool_name="editor_manage",
         description=_DESCRIPTION,
         ops={
+            "health": editor_handlers.editor_health,
             "state": editor_handlers.editor_state,
             "selection_get": editor_handlers.editor_selection_get,
             "selection_set": editor_handlers.editor_selection_set,
@@ -307,6 +311,7 @@ def register_editor_tools(mcp: FastMCP, *, include_non_core: bool = True) -> Non
             "game_eval": editor_handlers.game_eval,
         },
         read_resource_forms={
+            "health": None,
             "state": "godot://editor/state",
             "selection_get": "godot://selection/current",
             "monitors_get": "godot://performance",

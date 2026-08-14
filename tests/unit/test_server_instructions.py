@@ -47,7 +47,7 @@ _FROZEN_NO_EXCLUSION_TEXT = (
     "                   move, reparent, add_to_group, remove_from_group\n"
     "  script_manage    read, detach, find_symbols\n"
     "  project_manage   stop, settings_get, settings_set\n"
-    "  editor_manage    state, selection_get/set, monitors_get, quit, logs_clear,\n"
+    "  editor_manage    health, state, selection_get/set, monitors_get, quit, logs_clear,\n"
     "                   game_eval\n"
     "  session_manage   list\n"
     "  test_manage      results_get\n"

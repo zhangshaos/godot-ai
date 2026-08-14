@@ -199,7 +199,7 @@ _ROLLUP_BLOCKS: tuple[tuple[str | None, str], ...] = (
     ("project", "  project_manage   stop, settings_get, settings_set\n"),
     (
         "editor",
-        "  editor_manage    state, selection_get/set, monitors_get, quit, logs_clear,\n"
+        "  editor_manage    health, state, selection_get/set, monitors_get, quit, logs_clear,\n"
         "                   game_eval\n",
     ),
     (None, "  session_manage   list\n"),

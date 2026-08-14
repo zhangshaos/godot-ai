@@ -10,6 +10,29 @@ import websockets
 
 
 class TestNoActiveSessionDiagnostics:
+    async def test_health_distinguishes_running_backend_without_editor(self):
+        from fastmcp import Client
+
+        from godot_ai.server import create_server
+
+        mcp = create_server(ws_port=19604)
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "editor_manage",
+                {"op": "health", "params": {}},
+                raise_on_error=False,
+            )
+
+        assert not result.is_error
+        assert result.structured_content == {
+            "backend_running": True,
+            "editor_connected": False,
+            "session_id": None,
+            "project_name": None,
+            "current_scene": None,
+            "readiness": None,
+        }
+
     async def test_tool_error_explains_missing_editor_session(self):
         from fastmcp import Client
 
@@ -313,6 +336,43 @@ class TestSceneSaveAsTool:
 
         assert result.data["path"] == "res://backup/main_copy.tscn"
         assert result.data["undoable"] is False
+
+
+# ---------------------------------------------------------------------------
+# editor_health
+# ---------------------------------------------------------------------------
+
+
+class TestEditorHealthTool:
+    async def test_returns_compact_health(self, mcp_stack):
+        client, plugin = mcp_stack
+
+        async def respond():
+            cmd = await plugin.recv_command()
+            assert cmd["command"] == "get_editor_state"
+            await plugin.send_response(
+                cmd["request_id"],
+                {
+                    "godot_version": "4.4.1",
+                    "project_name": "TestGame",
+                    "current_scene": "res://main.tscn",
+                    "is_playing": False,
+                    "readiness": "ready",
+                },
+            )
+
+        task = asyncio.create_task(respond())
+        result = await client.call_tool("editor_manage", {"op": "health", "params": {}})
+        await task
+
+        assert result.data == {
+            "backend_running": True,
+            "editor_connected": True,
+            "session_id": "mcp-test",
+            "project_name": "TestGame",
+            "current_scene": "res://main.tscn",
+            "readiness": "ready",
+        }
 
 
 # ---------------------------------------------------------------------------

@@ -43,6 +43,30 @@ PLUGIN_RELOAD_RECONNECT_TIMEOUT_SEC = 15.0
 _pending_reload_tasks: set[asyncio.Task] = set()
 
 
+async def editor_health(runtime: DirectRuntime) -> dict:
+    """Return compact backend and active/pinned editor health state."""
+    session = runtime.get_active_session()
+    if session is None:
+        return {
+            "backend_running": True,
+            "editor_connected": False,
+            "session_id": None,
+            "project_name": None,
+            "current_scene": None,
+            "readiness": None,
+        }
+
+    state = await editor_state(runtime)
+    return {
+        "backend_running": True,
+        "editor_connected": True,
+        "session_id": session.session_id,
+        "project_name": state.get("project_name"),
+        "current_scene": state.get("current_scene"),
+        "readiness": state.get("readiness", session.readiness),
+    }
+
+
 async def editor_state(runtime: DirectRuntime) -> dict:
     """Read live editor state and self-heal the session readiness cache.
 

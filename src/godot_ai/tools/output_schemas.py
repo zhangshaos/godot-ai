@@ -396,13 +396,17 @@ SESSION_ACTIVATE_OUTPUT_SCHEMA: dict[str, Any] = {
 EDITOR_MANAGE_OUTPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "description": (
-        "Operation-specific editor state, selection, monitor, log-clear, quit, or game-eval result."
+        "Operation-specific editor health/state, selection, monitor, log-clear, quit, "
+        "or game-eval result."
     ),
     "properties": {
-        "current_scene": {"type": "string"},
-        "project_name": {"type": "string"},
+        "backend_running": {"type": "boolean"},
+        "editor_connected": {"type": "boolean"},
+        "session_id": {"type": ["string", "null"]},
+        "current_scene": {"type": ["string", "null"]},
+        "project_name": {"type": ["string", "null"]},
         "godot_version": {"type": "string"},
-        "readiness": {"type": "string"},
+        "readiness": {"type": ["string", "null"]},
         "is_playing": {"type": "boolean"},
         "game_status": {"type": "object", "additionalProperties": True},
         "selected_paths": {"type": "array", "items": {"type": "string"}},
