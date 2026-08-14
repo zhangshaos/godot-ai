@@ -14,7 +14,10 @@ from godot_ai.handlers import session as session_handlers
 from godot_ai.runtime.direct import DirectRuntime
 from godot_ai.tools import MUTATING_TOOL_ANNOTATIONS, READ_ONLY_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
-from godot_ai.tools.output_schemas import SESSION_MANAGE_OUTPUT_SCHEMA
+from godot_ai.tools.output_schemas import (
+    SESSION_ACTIVATE_OUTPUT_SCHEMA,
+    SESSION_MANAGE_OUTPUT_SCHEMA,
+)
 
 _DESCRIPTION = """\
 Session listing.
@@ -47,7 +50,10 @@ def register_session_tools(
     ## registered (#772).
     excluded = sorted(set(exclude_domains or ()))
 
-    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS)
+    @mcp.tool(
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        output_schema=SESSION_ACTIVATE_OUTPUT_SCHEMA,
+    )
     def session_activate(ctx: Context, session_id: str) -> dict:
         """Set the active Godot editor session for subsequent tool calls.
 

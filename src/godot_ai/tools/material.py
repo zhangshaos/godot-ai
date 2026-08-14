@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import material as material_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import MATERIAL_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Material authoring (StandardMaterial3D, ORMMaterial3D, ShaderMaterial,
@@ -64,4 +65,5 @@ def register_material_tools(mcp: FastMCP) -> None:
             "get": None,  ## Per-material read; no per-resource URI shape.
             "list": "godot://materials",
         },
+        output_schema=MATERIAL_MANAGE_OUTPUT_SCHEMA,
     )

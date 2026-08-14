@@ -15,6 +15,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import theme as theme_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import THEME_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Theme authoring (Godot's stylesheet-like resource for Controls). Cascades
@@ -55,4 +56,5 @@ def register_theme_tools(mcp: FastMCP) -> None:
             "set_stylebox_flat": theme_handlers.theme_set_stylebox_flat,
             "apply": theme_handlers.theme_apply,
         },
+        output_schema=THEME_MANAGE_OUTPUT_SCHEMA,
     )

@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import particle as particle_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import PARTICLE_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Particle systems (GPUParticles2D/3D, CPUParticles2D/3D). All write ops
@@ -69,4 +70,5 @@ def register_particle_tools(mcp: FastMCP) -> None:
             "restart": None,
             "get": None,
         },
+        output_schema=PARTICLE_MANAGE_OUTPUT_SCHEMA,
     )

@@ -91,9 +91,11 @@ def register_node_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None:
         Null-valued properties are included: an unset object/resource slot
         (``script`` on an unscripted node, an empty ``mesh`` or
         ``material``, …) returns ``"value": null`` with its declared type.
-        An attached script serializes to its ``res://`` path; built-in
-        scripts (no resource path) fall back to their string
-        representation.
+        Object constraints surface ``class_name`` / ``hint`` / ``hint_string``
+        when Godot publishes them, so callers can distinguish Resource slots
+        from Node-derived Inspector references. Node-valued properties
+        serialize to stable edited-scene paths; attached scripts serialize to
+        their ``res://`` path.
 
         Args:
             path: Scene path relative to the edited scene root (e.g.
@@ -180,6 +182,10 @@ def register_node_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None:
         - Resource: res:// path string (loads + assigns); null/"" clears.
           For a fresh built-in resource, pass ``{"__class__": "BoxMesh", ...}``.
           See ``resource_manage(op="create")`` for more control.
+        - Node reference (including C# ``[Export]`` Node-derived properties):
+          pass ``{"__node_path__": "/Main/Child"}``. The path resolves only
+          inside the currently edited scene and is checked against Godot's
+          declared Inspector Node type. Pass null to clear the reference.
         - StringName: plain string. Array/Dictionary: JSON list/object.
 
         Args:

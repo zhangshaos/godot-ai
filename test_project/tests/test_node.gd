@@ -441,6 +441,204 @@ func _build_temp_chain(names: Array[String]) -> Dictionary:
 
 # ----- set_property -----
 
+## Build a throwaway scripted node whose exported Object slots exercise the
+## Inspector Node-reference contract used by C# [Export] Node-derived fields.
+## The script is in-memory so this fixture adds no source/uid files to disk.
+func _make_node_reference_probe(probe_name: String) -> Dictionary:
+	var scene_root := EditorInterface.get_edited_scene_root()
+	var host := Node.new()
+	host.name = probe_name
+	scene_root.add_child(host)
+	host.owner = scene_root
+
+	var script := GDScript.new()
+	script.source_code = "\n".join([
+		"@tool",
+		"extends Node",
+		"@export var node_ref: Node",
+		"@export var control_ref: Control",
+		"@export var button_ref: Button",
+		"@export var audio_ref: AudioStreamPlayer",
+		"@export var resource_ref: Resource",
+	])
+	assert_eq(script.reload(), OK, "node-reference probe script should compile")
+	host.set_script(script)
+
+	var control := Control.new()
+	control.name = "ControlTarget"
+	host.add_child(control)
+	control.owner = scene_root
+	var button := Button.new()
+	button.name = "ButtonTarget"
+	host.add_child(button)
+	button.owner = scene_root
+	var audio := AudioStreamPlayer.new()
+	audio.name = "AudioTarget"
+	host.add_child(audio)
+	audio.owner = scene_root
+
+	return {
+		"host": host,
+		"control": control,
+		"button": button,
+		"audio": audio,
+		"base_path": "/Main/" + probe_name,
+	}
+
+
+func _free_node_reference_probe(probe: Dictionary) -> void:
+	# Drop any redo references before freeing the directly-created fixture.
+	_undo_redo.clear_history()
+	var host: Node = probe.host
+	host.set_script(null)
+	var parent := host.get_parent()
+	if parent != null:
+		parent.remove_child(host)
+	host.free()
+
+
+func test_get_properties_node_reference_metadata_and_stable_path() -> void:
+	var probe := _make_node_reference_probe("_McpNodeRefMeta")
+	var host: Node = probe.host
+	var button: Button = probe.button
+	host.set("button_ref", button)
+
+	var result := _handler.get_node_properties({
+		"path": probe.base_path,
+		"fields": ["button_ref"],
+	})
+	assert_has_key(result, "data")
+	assert_eq(result.data.count, 1)
+	var prop: Dictionary = result.data.properties[0]
+	assert_eq(prop.type, "Object")
+	assert_eq(prop.hint, PROPERTY_HINT_NODE_TYPE)
+	assert_eq(prop.hint_string, "Button")
+	assert_eq(
+		prop.value,
+		probe.base_path + "/ButtonTarget",
+		"Node-valued properties must serialize as stable edited-scene paths",
+	)
+	_free_node_reference_probe(probe)
+
+
+func test_set_property_node_reference_supports_node_derived_exports() -> void:
+	var probe := _make_node_reference_probe("_McpNodeRefTypes")
+	var host: Node = probe.host
+	var cases := [
+		{"property": "node_ref", "target": probe.button, "suffix": "/ButtonTarget"},
+		{"property": "control_ref", "target": probe.control, "suffix": "/ControlTarget"},
+		{"property": "button_ref", "target": probe.button, "suffix": "/ButtonTarget"},
+		{"property": "audio_ref", "target": probe.audio, "suffix": "/AudioTarget"},
+	]
+	for case: Dictionary in cases:
+		var target_path: String = probe.base_path + case.suffix
+		var result := _handler.set_property({
+			"path": probe.base_path,
+			"property": case.property,
+			"value": {"__node_path__": target_path},
+		})
+		assert_has_key(result, "data")
+		assert_eq(result.data.value, target_path, "set response should use stable Node path")
+		assert_eq(host.get(case.property), case.target, "resolved Node object must land in the slot")
+		assert_true(result.data.undoable, "Node-reference assignment should be undoable")
+
+	for _i in cases.size():
+		assert_true(editor_undo(_undo_redo), "undo Node-reference set should succeed")
+	for case: Dictionary in cases:
+		assert_eq(host.get(case.property), null, "undo should restore the unset export")
+	_free_node_reference_probe(probe)
+
+
+func test_set_property_node_reference_accepts_subclass_for_base_slot() -> void:
+	var probe := _make_node_reference_probe("_McpNodeRefSubclass")
+	var host: Node = probe.host
+	var result := _handler.set_property({
+		"path": probe.base_path,
+		"property": "control_ref",
+		"value": {"__node_path__": probe.base_path + "/ButtonTarget"},
+	})
+	assert_has_key(result, "data")
+	assert_eq(host.get("control_ref"), probe.button, "Button should satisfy a Control slot")
+	assert_true(editor_undo(_undo_redo), "undo subclass assignment should succeed")
+	_free_node_reference_probe(probe)
+
+
+func test_set_property_node_reference_rejects_wrong_node_type() -> void:
+	var probe := _make_node_reference_probe("_McpNodeRefWrongType")
+	var host: Node = probe.host
+	var result := _handler.set_property({
+		"path": probe.base_path,
+		"property": "button_ref",
+		"value": {"__node_path__": probe.base_path + "/ControlTarget"},
+	})
+	assert_is_error(result, ErrorCodes.WRONG_TYPE)
+	assert_contains(result.error.message, "Button")
+	assert_eq(host.get("button_ref"), null, "wrong-class Node must not be written")
+	_free_node_reference_probe(probe)
+
+
+func test_set_property_node_reference_rejects_resource_slot_and_missing_node() -> void:
+	var probe := _make_node_reference_probe("_McpNodeRefErrors")
+	var resource_result := _handler.set_property({
+		"path": probe.base_path,
+		"property": "resource_ref",
+		"value": {"__node_path__": probe.base_path + "/ButtonTarget"},
+	})
+	assert_is_error(resource_result, ErrorCodes.WRONG_TYPE)
+	assert_contains(resource_result.error.message, "not a Node-reference property")
+
+	var missing_result := _handler.set_property({
+		"path": probe.base_path,
+		"property": "node_ref",
+		"value": {"__node_path__": probe.base_path + "/DoesNotExist"},
+	})
+	assert_is_error(missing_result, ErrorCodes.NODE_NOT_FOUND)
+	_free_node_reference_probe(probe)
+
+
+func test_set_property_node_reference_rejects_malformed_marker() -> void:
+	var probe := _make_node_reference_probe("_McpNodeRefMalformed")
+	var extra_key := _handler.set_property({
+		"path": probe.base_path,
+		"property": "node_ref",
+		"value": {"__node_path__": probe.base_path + "/ButtonTarget", "extra": true},
+	})
+	assert_is_error(extra_key, ErrorCodes.INVALID_PARAMS)
+	var empty_path := _handler.set_property({
+		"path": probe.base_path,
+		"property": "node_ref",
+		"value": {"__node_path__": ""},
+	})
+	assert_is_error(empty_path, ErrorCodes.INVALID_PARAMS)
+	_free_node_reference_probe(probe)
+
+
+func test_set_property_node_reference_null_clears_and_undo_restores() -> void:
+	var probe := _make_node_reference_probe("_McpNodeRefClear")
+	var host: Node = probe.host
+	var target_path: String = probe.base_path + "/ButtonTarget"
+	var assigned := _handler.set_property({
+		"path": probe.base_path,
+		"property": "node_ref",
+		"value": {"__node_path__": target_path},
+	})
+	assert_has_key(assigned, "data")
+	assert_eq(host.get("node_ref"), probe.button)
+	var cleared := _handler.set_property({
+		"path": probe.base_path,
+		"property": "node_ref",
+		"value": null,
+	})
+	assert_has_key(cleared, "data")
+	assert_eq(cleared.data.value, null)
+	assert_eq(host.get("node_ref"), null, "null should clear a Node-reference export")
+	assert_true(editor_undo(_undo_redo), "undo clear should succeed")
+	assert_eq(host.get("node_ref"), probe.button, "undo clear should restore the Node")
+	assert_true(editor_undo(_undo_redo), "undo original assignment should succeed")
+	assert_eq(host.get("node_ref"), null)
+	_free_node_reference_probe(probe)
+
+
 func test_set_property_float() -> void:
 	var result := _handler.set_property({
 		"path": "/Main/Camera3D",

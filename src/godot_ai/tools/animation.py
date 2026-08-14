@@ -13,6 +13,10 @@ from godot_ai.handlers import animation as animation_handlers
 from godot_ai.runtime.direct import DirectRuntime
 from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import (
+    ANIMATION_CREATE_OUTPUT_SCHEMA,
+    ANIMATION_MANAGE_OUTPUT_SCHEMA,
+)
 
 _DESCRIPTION = """\
 AnimationPlayer authoring (player, tracks, autoplay, presets, playback).
@@ -67,7 +71,11 @@ the relative form already accepts.
 
 
 def register_animation_tools(mcp: FastMCP) -> None:
-    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS, meta=DEFER_META)
+    @mcp.tool(
+        output_schema=ANIMATION_CREATE_OUTPUT_SCHEMA,
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+    )
     async def animation_create(
         ctx: Context,
         player_path: str,
@@ -137,4 +145,5 @@ def register_animation_tools(mcp: FastMCP) -> None:
             "list": None,
             "get": None,
         },
+        output_schema=ANIMATION_MANAGE_OUTPUT_SCHEMA,
     )

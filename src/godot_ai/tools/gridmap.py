@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import gridmap as gridmap_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import GRIDMAP_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 GridMap authoring (set items, fill 3D regions, clear, read cells + library items).
@@ -60,4 +61,5 @@ def register_gridmap_tools(mcp: FastMCP) -> None:
             "gridmap_get_used_cells":     None,
             "gridmap_list_library_items": None,
         },
+        output_schema=GRIDMAP_MANAGE_OUTPUT_SCHEMA,
     )

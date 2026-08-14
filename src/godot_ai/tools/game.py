@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import game as game_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import GAME_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Runtime game inspection and input simulation.
@@ -77,4 +78,5 @@ def register_game_tools(mcp: FastMCP) -> None:
             "input_sequence": None,
             "input_state": None,
         },
+        output_schema=GAME_MANAGE_OUTPUT_SCHEMA,
     )

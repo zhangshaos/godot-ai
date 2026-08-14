@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import csg as csg_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import CSG_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 CSG authoring (create boolean shapes, set their operation).
@@ -42,4 +43,5 @@ def register_csg_tools(mcp: FastMCP) -> None:
             "csg_create":        csg_handlers.csg_create,
             "csg_set_operation": csg_handlers.csg_set_operation,
         },
+        output_schema=CSG_MANAGE_OUTPUT_SCHEMA,
     )

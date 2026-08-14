@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import tilemap as tilemap_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import TILEMAP_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 TileMap / TileMapLayer authoring (set tiles, fill rects, clear, read cells).
@@ -61,4 +62,5 @@ def register_tilemap_tools(mcp: FastMCP) -> None:
             # tilemap_get_cells is a read op with no godot:// resource counterpart
             "tilemap_get_cells": None,
         },
+        output_schema=TILEMAP_MANAGE_OUTPUT_SCHEMA,
     )

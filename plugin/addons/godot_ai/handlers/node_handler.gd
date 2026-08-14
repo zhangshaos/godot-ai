@@ -191,15 +191,15 @@ func set_property(params: Dictionary) -> Dictionary:
 
 	var value = params.get("value")
 
-	var found := false
-	var prop_type: int = TYPE_NIL
-	for prop in node.get_property_list():
-		if prop.name == property:
-			found = true
-			prop_type = prop.get("type", TYPE_NIL)
+	var prop_info: Dictionary = {}
+	for raw_prop in node.get_property_list():
+		var candidate_prop: Dictionary = raw_prop
+		if candidate_prop.get("name", "") == property:
+			prop_info = candidate_prop
 			break
-	if not found:
+	if prop_info.is_empty():
 		return ErrorCodes.make(ErrorCodes.PROPERTY_NOT_ON_CLASS, McpPropertyErrors.build_message(node, property))
+	var prop_type: int = int(prop_info.get("type", TYPE_NIL))
 
 	var old_value = node.get(property)
 	# Prefer declared property type; fall back to runtime type for dynamic props
@@ -208,12 +208,22 @@ func set_property(params: Dictionary) -> Dictionary:
 
 	var instantiated_resource := false
 
+	# Node references need an explicit wire marker because TYPE_OBJECT also
+	# covers Resources. A plain string keeps the existing res:// Resource
+	# semantics; {"__node_path__": "/Main/Child"} is the unambiguous path
+	# for Inspector Node slots, including C# [Export] Node-derived properties.
+	if value is Dictionary and (value as Dictionary).has("__node_path__"):
+		var node_ref: Variant = _coerce_node_reference(value, prop_info, scene_root, property)
+		if node_ref is Dictionary:
+			return node_ref
+		value = node_ref
+
 	# Some MCP clients (Cline) stringify the documented {"__class__": "BoxMesh", ...}
 	# value before sending. Promote that string back to a Dictionary here so the
 	# `__class__` branch below handles it, instead of the next branch treating
 	# the JSON blob as a res:// path and emitting "Resource not found: {...}".
 	# See #206.
-	if target_type == TYPE_OBJECT and value is String and value.begins_with("{"):
+	elif target_type == TYPE_OBJECT and value is String and value.begins_with("{"):
 		var json := JSON.new()
 		if json.parse(value) == OK and json.data is Dictionary and (json.data as Dictionary).has("__class__"):
 			value = json.data
@@ -295,8 +305,8 @@ func set_property(params: Dictionary) -> Dictionary:
 		"data": {
 			"path": node_path,
 			"property": property,
-			"value": _serialize_value(node.get(property)),
-			"old_value": _serialize_value(old_value),
+			"value": _serialize_property_value(node.get(property), scene_root),
+			"old_value": _serialize_property_value(old_value, scene_root),
 			"undoable": true,
 		}
 	}
@@ -1064,6 +1074,90 @@ static func _object_element_conforms(elem: Object, slot_value: Array) -> bool:
 	return _object_conforms(elem, slot_value.get_typed_class_name(), slot_value.get_typed_script())
 
 
+## Convert the explicit Node-reference wire marker into a live scene Node.
+## TYPE_OBJECT also covers Resources, so a bare string cannot safely mean both
+## a res:// asset and a scene node. `__node_path__` keeps that distinction
+## explicit and lets C# [Export] Node-derived properties participate in the
+## normal undoable set_property path.
+static func _coerce_node_reference(
+	value: Dictionary,
+	prop_info: Dictionary,
+	scene_root: Node,
+	property: String,
+) -> Variant:
+	if value.size() != 1:
+		return ErrorCodes.make(
+			ErrorCodes.INVALID_PARAMS,
+			'Node reference value for "%s" must contain only "__node_path__"' % property,
+		)
+	var raw_path: Variant = value.get("__node_path__")
+	if not (raw_path is String) or String(raw_path).is_empty():
+		return ErrorCodes.make(
+			ErrorCodes.INVALID_PARAMS,
+			'"__node_path__" for "%s" must be a non-empty scene path string' % property,
+		)
+	var prop_type := int(prop_info.get("type", TYPE_NIL))
+	var hint := int(prop_info.get("hint", PROPERTY_HINT_NONE))
+	if prop_type != TYPE_OBJECT or hint != PROPERTY_HINT_NODE_TYPE:
+		return ErrorCodes.make(
+			ErrorCodes.WRONG_TYPE,
+			'Property "%s" is not a Node-reference property; __node_path__ is only valid for Inspector Node slots'
+			% property,
+		)
+
+	var node_path := String(raw_path)
+	var referenced := McpScenePath.resolve(node_path, scene_root)
+	if referenced == null:
+		return ErrorCodes.make(
+			ErrorCodes.NODE_NOT_FOUND,
+			McpScenePath.format_node_error(node_path, scene_root),
+		)
+
+	var expected_type := String(prop_info.get("hint_string", "")).strip_edges()
+	if expected_type.is_empty():
+		expected_type = "Node"
+	if not _node_reference_conforms(referenced, expected_type):
+		return ErrorCodes.make(
+			ErrorCodes.WRONG_TYPE,
+			'Node "%s" is %s, which is not compatible with property "%s" (%s)'
+			% [
+				McpScenePath.from_node(referenced, scene_root),
+				referenced.get_class(),
+				property,
+				expected_type,
+			],
+		)
+	return referenced
+
+
+## Inspector Node hints usually name a native Node class (Node, Control,
+## Button, AudioStreamPlayer, ...). Project global classes are supported too
+## so GDScript/custom-script Node slots do not regress to native-only checks.
+static func _node_reference_conforms(node: Node, expected_type: String) -> bool:
+	if expected_type.is_empty() or expected_type == "Node":
+		return true
+	if ClassDB.class_exists(expected_type):
+		return ClassDB.is_parent_class(expected_type, "Node") and node.is_class(expected_type)
+	for entry in ProjectSettings.get_global_class_list():
+		if String(entry.get("class", "")) != expected_type:
+			continue
+		var script_path := String(entry.get("path", ""))
+		var script: Variant = load(script_path)
+		return script is Script and is_instance_of(node, script)
+	return false
+
+
+## Property-specific serializer: Node references become stable edited-scene
+## paths instead of volatile `Name:<Class#instance_id>` debug strings. Other
+## Variant shapes retain the shared serializer contract.
+static func _serialize_property_value(value: Variant, scene_root: Node) -> Variant:
+	if value is Node:
+		var path := McpScenePath.from_node(value, scene_root)
+		if not path.is_empty():
+			return path
+	return VariantSerializer.serialize(value)
+
+
 ## Shared class/script conformance predicate for typed Array elements and
 ## typed Dictionary values (#612 stages 2–3).
 static func _object_conforms(elem: Object, cls_name: StringName, script: Variant) -> bool:
@@ -1291,11 +1385,24 @@ func get_node_properties(params: Dictionary) -> Dictionary:
 		# and unset Resource slots (mesh, material, …) read back null and must
 		# appear as "value": null with their declared type, so callers can tell
 		# "Object-typed, currently unset" from "doesn't exist" (#771).
-		properties.append({
+		var property_data := {
 			"name": prop.name,
 			"type": type_string(prop.type),
-			"value": _serialize_value(node.get(prop.name)),
-		})
+			"value": _serialize_property_value(node.get(prop.name), scene_root),
+		}
+		# Surface non-default constraint metadata without inflating every scalar
+		# entry. This is especially important for TYPE_OBJECT, where `type`
+		# alone cannot distinguish Resource slots from Node/Control/Button refs.
+		var declared_class_name := String(prop.get("class_name", ""))
+		var hint := int(prop.get("hint", PROPERTY_HINT_NONE))
+		var hint_string := String(prop.get("hint_string", ""))
+		if not declared_class_name.is_empty():
+			property_data["class_name"] = declared_class_name
+		if hint != PROPERTY_HINT_NONE:
+			property_data["hint"] = hint
+		if not hint_string.is_empty():
+			property_data["hint_string"] = hint_string
+		properties.append(property_data)
 	# Requested names that matched no editor-visible property — distinguishes
 	# "you asked for something that doesn't exist" from "exists and is null".
 	var unknown_fields: Array[String] = []

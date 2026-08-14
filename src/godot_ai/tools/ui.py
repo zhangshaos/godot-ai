@@ -11,6 +11,7 @@ from fastmcp import FastMCP
 from godot_ai.handlers import control as control_handlers
 from godot_ai.handlers import ui as ui_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import UI_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 UI / Control authoring (HUD, menus, layouts, vector decoration).
@@ -56,4 +57,5 @@ def register_ui_tools(mcp: FastMCP) -> None:
             "build_layout": ui_handlers.ui_build_layout,
             "draw_recipe": control_handlers.control_draw_recipe,
         },
+        output_schema=UI_MANAGE_OUTPUT_SCHEMA,
     )

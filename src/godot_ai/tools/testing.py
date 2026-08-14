@@ -12,6 +12,7 @@ from godot_ai.handlers import testing as testing_handlers
 from godot_ai.runtime.direct import DirectRuntime
 from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS, READ_ONLY_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import TEST_MANAGE_OUTPUT_SCHEMA, TEST_RUN_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Test result inspection (re-fetches the most recent ``test_run`` payload).
@@ -26,7 +27,11 @@ Ops:
 
 
 def register_testing_tools(mcp: FastMCP) -> None:
-    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS, meta=DEFER_META)
+    @mcp.tool(
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+        output_schema=TEST_RUN_OUTPUT_SCHEMA,
+    )
     async def test_run(
         ctx: Context,
         suite: str = "",
@@ -83,4 +88,5 @@ def register_testing_tools(mcp: FastMCP) -> None:
             "results_get": "godot://test/results",
         },
         annotations=READ_ONLY_TOOL_ANNOTATIONS,
+        output_schema=TEST_MANAGE_OUTPUT_SCHEMA,
     )

@@ -14,6 +14,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import camera as camera_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import CAMERA_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Camera2D / Camera3D authoring (zoom, FOV, projection, smoothing, follow).
@@ -69,4 +70,5 @@ def register_camera_tools(mcp: FastMCP) -> None:
             "get": None,  ## No per-camera resource.
             "list": None,  ## No aggregate cameras resource.
         },
+        output_schema=CAMERA_MANAGE_OUTPUT_SCHEMA,
     )

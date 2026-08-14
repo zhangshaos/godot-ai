@@ -18,6 +18,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import audio as audio_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import AUDIO_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Sound effects, music, ambience (AudioStreamPlayer / 2D / 3D).
@@ -59,4 +60,5 @@ def register_audio_tools(mcp: FastMCP) -> None:
             "stop": None,
             "list": None,
         },
+        output_schema=AUDIO_MANAGE_OUTPUT_SCHEMA,
     )

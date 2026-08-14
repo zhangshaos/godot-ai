@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import autoload as autoload_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import AUTOLOAD_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Autoload (global singleton) management. Autoloads are scripts or scenes
@@ -35,4 +36,5 @@ def register_autoload_tools(mcp: FastMCP) -> None:
         read_resource_forms={
             "list": None,  ## No aggregate autoload resource yet.
         },
+        output_schema=AUTOLOAD_MANAGE_OUTPUT_SCHEMA,
     )

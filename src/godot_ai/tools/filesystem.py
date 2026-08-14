@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import filesystem as filesystem_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import FILESYSTEM_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Project filesystem access via the Godot editor's EditorFileSystem.
@@ -70,4 +71,5 @@ def register_filesystem_tools(mcp: FastMCP) -> None:
             ## the lint classes it as a read; it has no resource-URI form.
             "scan": None,
         },
+        output_schema=FILESYSTEM_MANAGE_OUTPUT_SCHEMA,
     )

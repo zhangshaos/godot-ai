@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import client as client_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import CLIENT_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Configure AI clients to use this Godot AI MCP server. Writes / removes
@@ -43,4 +44,5 @@ def register_client_tools(mcp: FastMCP) -> None:
             "configure": None,
             "remove": None,
         },
+        output_schema=CLIENT_MANAGE_OUTPUT_SCHEMA,
     )

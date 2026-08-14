@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from godot_ai.handlers import tileset as tileset_handlers
 from godot_ai.tools import READ_ONLY_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import TILESET_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 TileSet management — atlas inspection tools.
@@ -70,4 +71,5 @@ def register_tileset_tools(mcp: FastMCP) -> None:
             "tileset_get_atlas_image": None,
         },
         annotations=READ_ONLY_TOOL_ANNOTATIONS,
+        output_schema=TILESET_MANAGE_OUTPUT_SCHEMA,
     )

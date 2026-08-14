@@ -12,6 +12,7 @@ from godot_ai.handlers import project as project_handlers
 from godot_ai.runtime.direct import DirectRuntime
 from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import PROJECT_MANAGE_OUTPUT_SCHEMA, PROJECT_RUN_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Project run/stop and project.godot settings.
@@ -36,7 +37,11 @@ Ops:
 
 
 def register_project_tools(mcp: FastMCP) -> None:
-    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS, meta=DEFER_META)
+    @mcp.tool(
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+        output_schema=PROJECT_RUN_OUTPUT_SCHEMA,
+    )
     async def project_run(
         ctx: Context,
         mode: str = "main",
@@ -102,4 +107,5 @@ def register_project_tools(mcp: FastMCP) -> None:
             "stop": None,
             "settings_get": "godot://project/settings",
         },
+        output_schema=PROJECT_MANAGE_OUTPUT_SCHEMA,
     )

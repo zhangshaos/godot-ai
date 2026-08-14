@@ -12,7 +12,12 @@ from godot_ai.handlers import script as script_handlers
 from godot_ai.runtime.direct import DirectRuntime
 from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
-from godot_ai.tools.output_schemas import SCRIPT_ATTACH_OUTPUT_SCHEMA, SCRIPT_MANAGE_OUTPUT_SCHEMA
+from godot_ai.tools.output_schemas import (
+    SCRIPT_ATTACH_OUTPUT_SCHEMA,
+    SCRIPT_CREATE_OUTPUT_SCHEMA,
+    SCRIPT_MANAGE_OUTPUT_SCHEMA,
+    SCRIPT_PATCH_OUTPUT_SCHEMA,
+)
 
 _DESCRIPTION = """\
 Script (.gd) reading, detachment, and outline.
@@ -30,7 +35,11 @@ Ops:
 
 
 def register_script_tools(mcp: FastMCP) -> None:
-    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS, meta=DEFER_META)
+    @mcp.tool(
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+        output_schema=SCRIPT_CREATE_OUTPUT_SCHEMA,
+    )
     async def script_create(
         ctx: Context,
         path: str,
@@ -51,7 +60,11 @@ def register_script_tools(mcp: FastMCP) -> None:
         runtime = DirectRuntime.from_context(ctx, session_id=session_id or None)
         return await script_handlers.script_create(runtime, path=path, content=content)
 
-    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS, meta=DEFER_META)
+    @mcp.tool(
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+        output_schema=SCRIPT_PATCH_OUTPUT_SCHEMA,
+    )
     async def script_patch(
         ctx: Context,
         path: str,

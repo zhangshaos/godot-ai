@@ -9,10 +9,15 @@ from fastmcp import Context, FastMCP
 from godot_ai.handlers import batch as batch_handlers
 from godot_ai.runtime.direct import DirectRuntime
 from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS, JsonCoerced
+from godot_ai.tools.output_schemas import BATCH_EXECUTE_OUTPUT_SCHEMA
 
 
 def register_batch_tools(mcp: FastMCP) -> None:
-    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS, meta=DEFER_META)
+    @mcp.tool(
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+        output_schema=BATCH_EXECUTE_OUTPUT_SCHEMA,
+    )
     async def batch_execute(
         ctx: Context,
         commands: Annotated[list[dict], JsonCoerced],

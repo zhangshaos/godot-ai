@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import signal as signal_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import SIGNAL_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Signals (Godot's event/observer mechanism) — list, connect, disconnect.
@@ -38,4 +39,5 @@ def register_signal_tools(mcp: FastMCP) -> None:
         read_resource_forms={
             "list": None,  ## Per-node signal listing; no aggregate resource.
         },
+        output_schema=SIGNAL_MANAGE_OUTPUT_SCHEMA,
     )

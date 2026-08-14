@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from godot_ai.handlers import input_map as input_map_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import INPUT_MAP_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 InputMap actions and bindings (keyboard, mouse, gamepad). Persisted to
@@ -73,4 +74,5 @@ def register_input_map_tools(mcp: FastMCP) -> None:
         read_resource_forms={
             "list": "godot://input_map",
         },
+        output_schema=INPUT_MAP_MANAGE_OUTPUT_SCHEMA,
     )

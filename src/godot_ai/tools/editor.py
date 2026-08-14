@@ -13,7 +13,12 @@ from godot_ai.handlers import editor as editor_handlers
 from godot_ai.runtime.direct import DirectRuntime
 from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS, READ_ONLY_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
-from godot_ai.tools.output_schemas import EDITOR_STATE_OUTPUT_SCHEMA
+from godot_ai.tools.output_schemas import (
+    EDITOR_MANAGE_OUTPUT_SCHEMA,
+    EDITOR_RELOAD_PLUGIN_OUTPUT_SCHEMA,
+    EDITOR_STATE_OUTPUT_SCHEMA,
+    LOGS_READ_OUTPUT_SCHEMA,
+)
 
 _DESCRIPTION = """\
 Editor selection, performance monitors, quit, log clearing, game eval.
@@ -89,7 +94,11 @@ def register_editor_tools(mcp: FastMCP, *, include_non_core: bool = True) -> Non
     if not include_non_core:
         return
 
-    @mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, meta=DEFER_META)
+    @mcp.tool(
+        annotations=READ_ONLY_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+        output_schema=LOGS_READ_OUTPUT_SCHEMA,
+    )
     async def logs_read(
         ctx: Context,
         count: int = 50,
@@ -252,7 +261,11 @@ def register_editor_tools(mcp: FastMCP, *, include_non_core: bool = True) -> Non
             user_prompt=user_prompt,
         )
 
-    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS, meta=DEFER_META)
+    @mcp.tool(
+        output_schema=EDITOR_RELOAD_PLUGIN_OUTPUT_SCHEMA,
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+    )
     async def editor_reload_plugin(ctx: Context, session_id: str = "") -> dict:
         """Reload the Godot editor plugin.
 
@@ -304,4 +317,5 @@ def register_editor_tools(mcp: FastMCP, *, include_non_core: bool = True) -> Non
             "logs_clear": None,
             "game_eval": None,
         },
+        output_schema=EDITOR_MANAGE_OUTPUT_SCHEMA,
     )

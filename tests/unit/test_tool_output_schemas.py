@@ -7,19 +7,50 @@ import asyncio
 from godot_ai.server import create_server
 
 _HOST_MIRRORED_TOOLS = {
+    "session_activate",
     "session_manage",
     "editor_state",
+    "logs_read",
+    "editor_manage",
+    "editor_reload_plugin",
     "scene_get_hierarchy",
     "node_get_properties",
+    "node_find",
     "scene_open",
     "scene_save",
     "scene_manage",
     "node_create",
     "node_set_property",
     "node_manage",
-    "resource_manage",
+    "project_run",
+    "project_manage",
+    "script_create",
+    "script_patch",
     "script_attach",
     "script_manage",
+    "resource_manage",
+    "api_manage",
+    "filesystem_manage",
+    "signal_manage",
+    "autoload_manage",
+    "input_map_manage",
+    "game_manage",
+    "test_run",
+    "test_manage",
+    "batch_execute",
+    "client_manage",
+    "ui_manage",
+    "theme_manage",
+    "animation_create",
+    "animation_manage",
+    "material_manage",
+    "particle_manage",
+    "camera_manage",
+    "audio_manage",
+    "tilemap_manage",
+    "tileset_manage",
+    "gridmap_manage",
+    "csg_manage",
 }
 
 
@@ -34,11 +65,12 @@ def test_host_mirrored_tools_expose_informative_output_schemas():
         assert schema.get("properties"), f"{name} outputSchema is still generic"
 
 
-def test_unoverridden_manage_tools_keep_fastmcp_inferred_output_schema():
+def test_editor_screenshot_keeps_multimodal_output_unconstrained():
     tools = {tool.name: tool for tool in asyncio.run(create_server().list_tools())}
 
-    schema = tools["test_manage"].output_schema
-    assert schema == {"type": "object", "additionalProperties": True}
+    # editor_screenshot may return MCP ImageContent/list blocks when include_image=True.
+    # An object output schema would falsely constrain that multimodal return contract.
+    assert tools["editor_screenshot"].output_schema is None
 
 
 def test_high_frequency_write_output_schemas_document_follow_up_fields():
@@ -60,4 +92,10 @@ def test_high_frequency_write_output_schemas_document_follow_up_fields():
     assert script_attach is not None
     assert {"path", "script_path", "had_previous_script", "undoable"} <= set(
         script_attach["properties"]
+    )
+
+    batch_execute = tools["batch_execute"].output_schema
+    assert batch_execute is not None
+    assert {"succeeded", "stopped_at", "results", "rolled_back", "undoable"} <= set(
+        batch_execute["properties"]
     )
