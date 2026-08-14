@@ -801,9 +801,9 @@ class TestPendingFutureScoping:
     async def test_disconnect_fails_in_flight_command_immediately(self, harness):
         """#690 finding 1: a connection close must fail that session's
         in-flight futures NOW, not leave the caller to wait out its full
-        per-command timeout (120s for test_run) — and the failure must be a
-        ConnectionError, not a TimeoutError, so the circuit breaker records
-        a disconnect."""
+        per-command timeout (120s for test_run). GodotClient normalizes the
+        transport disconnect to TRANSPORT_OUTCOME_UNKNOWN while the circuit
+        breaker still records the underlying ConnectionError."""
         plugin = await harness.connect_plugin(session_id="dc-inflight")
         client = GodotClient(harness.server, harness.registry)
 
@@ -815,8 +815,11 @@ class TestPendingFutureScoping:
         crash_task = asyncio.create_task(crash_mid_command())
         loop = asyncio.get_running_loop()
         started = loop.time()
-        with pytest.raises(ConnectionError):
+        with pytest.raises(GodotCommandError) as exc_info:
             await client.send("run_tests", session_id="dc-inflight", timeout=30.0)
+        assert exc_info.value.code == "TRANSPORT_OUTCOME_UNKNOWN"
+        assert exc_info.value.data["reason"] == "session_disconnected"
+        assert exc_info.value.data["failure_kind"] == "ConnectionError"
         elapsed = loop.time() - started
         await crash_task
 
@@ -978,13 +981,16 @@ class TestErrors:
         assert exc_info.value.data["connected"] is False
         assert "session_manage(op='list')" in exc_info.value.data["hint"]
 
-    async def test_timeout_raises(self, harness):
+    async def test_timeout_raises_structured_outcome_unknown(self, harness):
         plugin = await harness.connect_plugin()
         client = GodotClient(harness.server, harness.registry)
 
-        # Don't respond — let it time out
-        with pytest.raises(TimeoutError):
+        # Don't respond — let it time out.
+        with pytest.raises(GodotCommandError) as exc_info:
             await client.send("slow_command", timeout=0.2)
+        assert exc_info.value.code == "TRANSPORT_OUTCOME_UNKNOWN"
+        assert exc_info.value.data["reason"] == "command_timeout"
+        assert exc_info.value.data["failure_kind"] == "TimeoutError"
 
         await plugin.close()
 
@@ -1019,8 +1025,10 @@ class TestErrors:
         plugin = await harness.connect_plugin()
         client = GodotClient(harness.server, harness.registry)
 
-        with pytest.raises(TimeoutError):
+        with pytest.raises(GodotCommandError) as exc_info:
             await client.send("slow_command", timeout=0.05)
+        assert exc_info.value.code == "TRANSPORT_OUTCOME_UNKNOWN"
+        assert exc_info.value.data["reason"] == "command_timeout"
 
         assert harness.server._pending == {}
 
@@ -1560,15 +1568,17 @@ class TestHandshakeAuthToken:
 
 class TestPendingFutureCleanup:
     async def test_timeout_pops_pending_entry(self, harness):
-        ## TimeoutError path always cleared the pending dict; this test
-        ## pins that behavior so a future refactor doesn't regress it.
+        ## The transport TimeoutError is normalized by GodotClient, but the
+        ## underlying send_command path must still clear the pending dict.
         plugin = await harness.connect_plugin(session_id="leak-timeout")
         client = GodotClient(harness.server, harness.registry)
 
-        with pytest.raises(TimeoutError):
+        with pytest.raises(GodotCommandError) as exc_info:
             await client.send("never_responded", timeout=0.1)
+        assert exc_info.value.code == "TRANSPORT_OUTCOME_UNKNOWN"
+        assert exc_info.value.data["failure_kind"] == "TimeoutError"
 
-        assert harness.server._pending == {}, "TimeoutError should not leave entries in _pending"
+        assert harness.server._pending == {}, "timeout should not leave entries in _pending"
         await plugin.close()
 
     async def test_send_failure_pops_pending_entry(self, harness):
@@ -1932,9 +1942,12 @@ class TestMalformedFrameResilience:
             await plugin.ws.send(json.dumps({"request_id": cmd["request_id"], "status": 42}))
 
         handler_task = asyncio.create_task(mock_handler())
-        with pytest.raises(ConnectionError, match="Malformed response"):
+        with pytest.raises(GodotCommandError) as exc_info:
             await client.send("get_editor_state", timeout=5.0)
         await handler_task
 
+        assert exc_info.value.code == "TRANSPORT_OUTCOME_UNKNOWN"
+        assert exc_info.value.data["reason"] == "transport_connection_error"
+        assert exc_info.value.data["failure_kind"] == "ConnectionError"
         assert harness.registry.get("bad-corr") is not None
         await plugin.close()

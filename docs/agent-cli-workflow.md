@@ -78,6 +78,8 @@ godot-ai call session_manage --args '{"op":"list","params":{}}'
 
 只要 tool 支持 `scene_file` guard，场景写操作应传入预期场景路径。这样用户在操作过程中切换 Scene 时，写入会以 `EDITED_SCENE_MISMATCH` 失败，而不是误改新 Scene。
 
+如果调用返回 `TRANSPORT_OUTCOME_UNKNOWN`，表示命令在发送或等待回复阶段发生超时/断线，无法证明 Editor 是否已经执行；该命令可能已经完成。不得自动重放写操作。先等待 `editor_manage(op="health")` 恢复，再回读受影响的 Scene / Node / Resource / 文件状态，只有确认原操作未生效后才能决定是否重新执行。纯读取调用在 transport 恢复后可以直接重试。
+
 ## 4. 查询规范
 
 优先读取 Godot Editor 的实际状态，而不是只从 `.tscn/.tres` 文本猜测 Editor 状态。

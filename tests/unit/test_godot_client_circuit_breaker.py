@@ -139,12 +139,20 @@ class TestPreThresholdBehavior:
             assert "session_manage(op='list')" in exc_info.value.data["hint"]
         assert breaker.check_open("ghost") is None
 
-    async def test_first_transport_timeout_raises_bare_timeout(self) -> None:
+    async def test_first_transport_timeout_raises_structured_outcome_unknown(self) -> None:
         client, ws, breaker = _client(_make_registry("sess", active="sess"), threshold=3)
         for _ in range(2):
             ws.queue(TimeoutError("boom"))
-            with pytest.raises(TimeoutError):
+            with pytest.raises(GodotCommandError) as exc_info:
                 await client.send("slow", session_id="sess")
+            assert exc_info.value.code == "TRANSPORT_OUTCOME_UNKNOWN"
+            assert exc_info.value.data["reason"] == "command_timeout"
+            assert exc_info.value.data["session_id"] == "sess"
+            assert exc_info.value.data["command"] == "slow"
+            assert exc_info.value.data["failure_kind"] == "TimeoutError"
+            assert exc_info.value.data["outcome_unknown"] is True
+            assert exc_info.value.data["retryable"] is False
+            assert "do not automatically replay writes" in exc_info.value.data["hint"]
         assert breaker.snapshot("sess")["consecutive_failures"] == 2
         assert breaker.check_open("sess") is None
 
@@ -187,8 +195,9 @@ class TestCircuitOpens:
         client, ws, _ = _client(_make_registry("sess", active="sess"), threshold=3)
         for _ in range(3):
             ws.queue(TimeoutError("nope"))
-            with pytest.raises(TimeoutError):
+            with pytest.raises(GodotCommandError) as transport_exc:
                 await client.send("slow", session_id="sess")
+            assert transport_exc.value.code == "TRANSPORT_OUTCOME_UNKNOWN"
         ## 4th call short-circuits before any transport work.
         before_len = len(ws.recorded_calls)
         with pytest.raises(GodotCommandError) as exc_info:
@@ -202,8 +211,11 @@ class TestCircuitOpens:
         client, ws, _ = _client(_make_registry("sess", active="sess"), threshold=3)
         for _ in range(3):
             ws.queue(ConnectionError("ws dropped"))
-            with pytest.raises(ConnectionError):
+            with pytest.raises(GodotCommandError) as transport_exc:
                 await client.send("ping", session_id="sess")
+            assert transport_exc.value.code == "TRANSPORT_OUTCOME_UNKNOWN"
+            assert transport_exc.value.data["reason"] == "transport_connection_error"
+            assert transport_exc.value.data["failure_kind"] == "ConnectionError"
         with pytest.raises(GodotCommandError) as exc_info:
             await client.send("ping", session_id="sess")
         assert exc_info.value.code == "PLUGIN_DISCONNECTED"
@@ -232,8 +244,9 @@ class TestReset:
         client, ws, breaker = _client(_make_registry("sess", active="sess"), threshold=3)
         for _ in range(2):
             ws.queue(TimeoutError("nope"))
-            with pytest.raises(TimeoutError):
+            with pytest.raises(GodotCommandError) as transport_exc:
                 await client.send("slow", session_id="sess")
+            assert transport_exc.value.code == "TRANSPORT_OUTCOME_UNKNOWN"
         ws.queue({"ok": True})
         result = await client.send("ping", session_id="sess")
         assert result == {"ok": True}
@@ -242,8 +255,9 @@ class TestReset:
         ## Fresh threshold countdown.
         for _ in range(2):
             ws.queue(TimeoutError("nope"))
-            with pytest.raises(TimeoutError):
+            with pytest.raises(GodotCommandError) as transport_exc:
                 await client.send("slow", session_id="sess")
+            assert transport_exc.value.code == "TRANSPORT_OUTCOME_UNKNOWN"
         assert breaker.check_open("sess") is None
 
     async def test_per_session_success_clears_no_session_circuit(self) -> None:

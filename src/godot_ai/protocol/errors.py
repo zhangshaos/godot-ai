@@ -11,9 +11,10 @@ class ErrorCode(StrEnum):
     EDITOR_NOT_READY = "EDITOR_NOT_READY"
     INVALID_PARAMS = "INVALID_PARAMS"
     PLUGIN_DISCONNECTED = "PLUGIN_DISCONNECTED"
-    # Emitted by the attach bridge when a tools/call request may have reached
-    # the backend. Automatic replay is forbidden because the operation may
-    # already have completed.
+    # Emitted when a request may have crossed a transport boundary but its
+    # reply was lost or timed out. Used by both the direct Editor bridge and
+    # the attach proxy. Automatic replay is forbidden because the operation
+    # may already have completed.
     TRANSPORT_OUTCOME_UNKNOWN = "TRANSPORT_OUTCOME_UNKNOWN"
     # Emitted by attach when package/protocol drift cannot be repaired inside
     # the running upstream MCP session.

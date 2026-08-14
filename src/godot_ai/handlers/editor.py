@@ -411,7 +411,13 @@ async def editor_reload_plugin(runtime: DirectRuntime) -> dict:
         ## Pin to old_id explicitly so the reload command can't race
         ## active-session changes (e.g. another editor disconnecting mid-call).
         await runtime.send_command("reload_plugin", session_id=old_id, timeout=2.0)
+    except GodotCommandError as exc:
+        if exc.code != ErrorCode.TRANSPORT_OUTCOME_UNKNOWN:
+            raise
+        logger.debug("Expected transport loss during reload: %s", exc)
     except (ConnectionError, TimeoutError) as exc:
+        ## Runtime test doubles and older runtime adapters may still expose
+        ## the raw transport exception directly.
         logger.debug("Expected disconnect during reload: %s", exc)
 
     try:
@@ -461,7 +467,14 @@ async def _dispatch_reload_async(runtime: DirectRuntime, old_id: str) -> None:
         await asyncio.sleep(PLUGIN_MANAGED_RELOAD_DELAY_SEC)
     try:
         await runtime.send_command("reload_plugin", session_id=old_id, timeout=2.0)
+    except GodotCommandError as exc:
+        if exc.code == ErrorCode.TRANSPORT_OUTCOME_UNKNOWN:
+            logger.debug("Expected transport loss during plugin-managed reload: %s", exc)
+        else:
+            logger.exception("Unexpected Godot error dispatching plugin-managed reload")
     except (ConnectionError, TimeoutError) as exc:
+        ## Runtime test doubles and older runtime adapters may still expose
+        ## the raw transport exception directly.
         logger.debug("Expected disconnect during plugin-managed reload: %s", exc)
     except Exception:
         logger.exception("Unexpected error dispatching plugin-managed reload")

@@ -1266,12 +1266,14 @@ class ReloadStubClient:
         registry: SessionRegistry,
         new_session_id: str = "reloaded",
         raise_timeout: bool = False,
+        raise_outcome_unknown: bool = False,
         target_id: str = "old-session",
         target_project_path: str = "/tmp/test_project",
     ):
         self.registry = registry
         self.new_session_id = new_session_id
         self.raise_timeout = raise_timeout
+        self.raise_outcome_unknown = raise_outcome_unknown
         self.target_id = target_id
         self.target_project_path = target_project_path
         self.calls: list[dict] = []
@@ -1303,6 +1305,11 @@ class ReloadStubClient:
             )
             if self.raise_timeout:
                 raise TimeoutError("disconnect during reload")
+            if self.raise_outcome_unknown:
+                raise GodotCommandError(
+                    code="TRANSPORT_OUTCOME_UNKNOWN",
+                    message="reload transport dropped after dispatch",
+                )
             return {"status": "reloading", "message": "Plugin reload initiated"}
         return {"status": "ok"}
 
@@ -1972,6 +1979,24 @@ async def test_reload_plugin_handles_disconnect_before_ack_if_replacement_is_pre
     assert runtime.active_session_id == "new-after-timeout"
 
 
+async def test_reload_plugin_handles_structured_transport_loss_if_replacement_is_present():
+    registry = SessionRegistry()
+    registry.register(_make_session("old-session"))
+    runtime = DirectRuntime(
+        registry=registry,
+        client=ReloadStubClient(
+            registry=registry,
+            new_session_id="new-after-transport-loss",
+            raise_outcome_unknown=True,
+        ),
+    )
+
+    result = await editor_handlers.editor_reload_plugin(runtime)
+
+    assert result["new_session_id"] == "new-after-transport-loss"
+    assert runtime.active_session_id == "new-after-transport-loss"
+
+
 async def test_reload_plugin_reports_structured_failure_when_replacement_never_connects(
     monkeypatch,
 ):
@@ -2140,6 +2165,24 @@ async def test_reload_plugin_async_dispatch_swallows_disconnect_errors(
     ## Drain the background task by reference; if it raised an unhandled
     ## exception (TimeoutError counted as expected) `gather` would surface
     ## it here.
+    await asyncio.gather(*editor_handlers._pending_reload_tasks)
+
+
+async def test_reload_plugin_async_dispatch_swallows_structured_transport_loss(
+    plugin_managed_mode,
+):
+    registry = SessionRegistry()
+    registry.register(_make_session("old-session"))
+    stub = ReloadStubClient(
+        registry=registry,
+        new_session_id="new-session",
+        raise_outcome_unknown=True,
+    )
+    runtime = DirectRuntime(registry=registry, client=stub)
+
+    result = await editor_handlers.editor_reload_plugin(runtime)
+    assert result["status"] == "reload_initiated"
+
     await asyncio.gather(*editor_handlers._pending_reload_tasks)
 
 

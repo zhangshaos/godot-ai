@@ -73,6 +73,29 @@ class TestNoActiveSessionDiagnostics:
         assert error["data"]["connected"] is False
         assert "session_manage(op='list')" in error["data"]["hint"]
 
+    async def test_in_flight_disconnect_returns_structured_outcome_unknown(self, mcp_stack):
+        client, plugin = mcp_stack
+
+        async def disconnect_after_dispatch():
+            cmd = await plugin.recv_command()
+            assert cmd["command"] == "get_editor_state"
+            await plugin.close()
+
+        disconnect_task = asyncio.create_task(disconnect_after_dispatch())
+        result = await client.call_tool("editor_state", {}, raise_on_error=False)
+        await disconnect_task
+
+        assert result.is_error
+        error = result.structured_content["error"]
+        assert error["code"] == "TRANSPORT_OUTCOME_UNKNOWN"
+        assert error["data"]["reason"] == "session_disconnected"
+        assert error["data"]["session_id"] == "mcp-test"
+        assert error["data"]["command"] == "get_editor_state"
+        assert error["data"]["failure_kind"] == "ConnectionError"
+        assert error["data"]["outcome_unknown"] is True
+        assert error["data"]["retryable"] is False
+        assert "do not automatically replay writes" in error["data"]["hint"]
+
 
 # ---------------------------------------------------------------------------
 # scene_get_hierarchy

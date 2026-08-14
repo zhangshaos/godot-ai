@@ -84,9 +84,11 @@ class GodotClient:
             raise ValueError(f"Unknown diagnostic hint policy: {self.default_hint_policy!r}")
         ## F-006: stop death-spiral hot retries from melting the bridge.
         ## Defaults: 5 consecutive transport failures opens for 1s, doubles
-        ## per re-open up to 30s. While open, the next call short-circuits
-        ## with PLUGIN_DISCONNECTED + retry_after_ms so retrying clients
-        ## get a clear back-off signal instead of another bare TimeoutError.
+        ## per re-open up to 30s. Individual transport failures already surface
+        ## as structured TRANSPORT_OUTCOME_UNKNOWN errors; while open, the next
+        ## call short-circuits with PLUGIN_DISCONNECTED + retry_after_ms so
+        ## retrying clients get an explicit back-off signal without touching
+        ## the transport again.
         self._circuit = circuit_breaker or EditorBridgeCircuitBreaker()
 
     @property
@@ -159,6 +161,9 @@ class GodotClient:
         Raises GodotCommandError(PLUGIN_DISCONNECTED) when the per-session
         transport circuit is open (death-spiral protection — see
         ``EditorBridgeCircuitBreaker``).
+        Raises GodotCommandError(TRANSPORT_OUTCOME_UNKNOWN) when a dispatched
+        command times out or loses its editor transport before a reply arrives;
+        callers must inspect state before replaying a potentially mutating call.
         Raises GodotCommandError(INVALID_PARAMS) when params contain a
         non-finite float — JSON cannot represent NaN/Infinity, and
         ``model_dump_json`` would silently serialize it as null, corrupting
@@ -227,8 +232,43 @@ class GodotClient:
                 timeout=timeout,
             )
         except (ConnectionError, TimeoutError) as exc:
-            self._record_failure(session_id, kind=type(exc).__name__)
-            raise
+            failure_kind = type(exc).__name__
+            self._record_failure(session_id, kind=failure_kind)
+            reason = "transport_connection_error"
+            message = (
+                f"Editor transport failed while command '{command}' was in flight on session "
+                f"'{session_id}'; the command outcome is unknown."
+            )
+            if isinstance(exc, TimeoutError):
+                reason = "command_timeout"
+                message = (
+                    f"Editor transport timed out after {timeout}s while command '{command}' was "
+                    f"in flight on session '{session_id}'; the command outcome is unknown."
+                )
+            elif self.registry.get(session_id) is None:
+                reason = "session_disconnected"
+                message = (
+                    f"Editor session '{session_id}' disconnected while command '{command}' was "
+                    "in flight; the command outcome is unknown."
+                )
+            raise GodotCommandError(
+                code=ErrorCode.TRANSPORT_OUTCOME_UNKNOWN,
+                message=message,
+                data={
+                    "reason": reason,
+                    "session_id": session_id,
+                    "command": command,
+                    "failure_kind": failure_kind,
+                    "outcome_unknown": True,
+                    "retryable": False,
+                    "hint": (
+                        "The editor may be busy, reloading, or reconnecting. The call may have "
+                        "completed even though its reply was lost. After the session is healthy "
+                        "again, inspect the affected state before deciding whether another call "
+                        "is safe; do not automatically replay writes."
+                    ),
+                },
+            ) from None
 
         ## A bridge round-trip completed (even if the plugin returned an
         ## error response — that's the plugin saying "no" to a valid
