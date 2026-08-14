@@ -122,6 +122,8 @@ inside the app, not via an external config file.)
 
 **Tools and resources:** see [docs/TOOLS.md](docs/TOOLS.md) for the full tool, op, and resource list (~43 tools exposing 120+ ops, plus read-only `godot://` resources), grouped by domain.
 
+**Agent automation:** prefer first-class MCP tool bindings. When a host does not expose an equivalent binding, the one-shot `godot-ai` CLI remains a fallback; see [docs/agent-cli-workflow.md](docs/agent-cli-workflow.md) for the safe workflow and CLI discovery guidance.
+
 **Testing:** the plugin ships an in-editor GDScript test framework — your AI client (or you) can write `McpTestSuite` suites for your own game under `res://tests/` and run them with `test_run`. See [docs/testing.md](docs/testing.md).
 
 <details>

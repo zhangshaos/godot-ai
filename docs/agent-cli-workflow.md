@@ -1,20 +1,35 @@
-# Agent 使用 godot-ai CLI 操作 Godot Editor 协作规范
+# Agent 使用 godot-ai 操作 Godot Editor 协作规范
 
-本文档面向通过 shell / DevSpace 调用 `godot-ai` 的自动化开发 Agent。目标是让 Agent 在没有直接 MCP tool binding 的情况下，通过 one-shot CLI 安全查询、创建、修改、删除 Godot Editor 中的场景、节点和资源，并形成可审查、可回滚、可验证的协作闭环。
+本文档面向通过 MCP host 或 one-shot CLI 使用 `godot-ai` 的自动化开发 Agent。目标是优先通过 host 已暴露的第一类结构化 MCP tool 安全查询、创建、修改、删除 Godot Editor 中的场景、节点和资源，并在 host 没有直接 tool binding 时保留 CLI 作为兼容入口，形成可审查、可回滚、可验证的协作闭环。
 
-具体工具参数和当前清单以 `docs/TOOLS.md`、`godot-ai tools --json` 与实际 tool schema 为准。
+具体工具参数和当前清单以 `docs/TOOLS.md` 与 host 实际收到的 tool schema 为准；CLI 场景还可以用 `godot-ai tools --json` 检查 backend 当前 catalog。
 
 ## 1. 标准链路
 
+优先链路：
+
+```text
+Agent / MCP host
+→ first-class godot-ai MCP tool
+→ shared FastMCP backend
+→ WebSocket
+→ Godot Editor Plugin
+→ Godot Editor
+```
+
+只有 host 没有暴露等价 MCP tool 时，才使用 CLI 兼容链路：
+
 ```text
 Agent
-→ shell / DevSpace.bash
+→ shell
 → godot-ai CLI
 → shared FastMCP backend
 → WebSocket
 → Godot Editor Plugin
 → Godot Editor
 ```
+
+不要在 host 已提供第一类 `godot_*` / godot-ai tool 时，再经 shell 间接调用同一个写操作。第一类 tool 可以让 host 直接理解参数 schema、annotations 和结果契约，也避免把 Godot 写操作伪装成通用 shell 命令。
 
 CLI 约定：
 
@@ -29,7 +44,7 @@ Windows 跨仓库调用推荐使用 godot-ai 自己虚拟环境中的绝对路�
 D:/path/to/godot-ai/.venv/Scripts/godot-ai.exe
 ```
 
-其它仓库不需要各自安装 Python 环境，也不必把 godot-ai 加入全局 PATH。
+其它仓库不需要各自安装 Python 环境，也不必把 godot-ai 加入全局 PATH。若 `godot-ai` 已安装到 PATH，则可直接使用命令名；自动化脚本更适合固定到明确的虚拟环境或安装位置，避免命中错误版本。
 
 ## 2. 总体工作流
 
@@ -45,25 +60,21 @@ Agent 操作 Godot Editor 时遵循：
 → Git diff / status 验证
 ```
 
-不得因为 CLI 可写，就跳过目标项目原有架构、命名、资源和 review 规则。
+不得因为 MCP tool 或 CLI 可写，就跳过目标项目原有架构、命名、资源和 review 规则。
 
 ## 3. Session 与 Scene 安全
 
-写操作前至少调用：
+写操作前优先调用 `editor_manage(op="health")` 做紧凑健康检查，再调用 `editor_state` 读取实时 Editor / game 状态。至少确认 `editor_connected`、`project_name`、`current_scene`、`readiness` 和运行状态；不能把 `backend_running=true` 当成 Editor 已连接且可写。
+
+如果可能同时打开多个 Godot Editor，先执行 `session_manage(op="list")`，之后显式传入 `session_id`。对于 `<domain>_manage`，`session_id` 与 `op`、`params` 同级，不放进 `params`。
+
+CLI fallback 中对应写法例如：
 
 ```bash
+godot-ai call editor_manage --args '{"op":"health","params":{}}'
 godot-ai call editor_state --args '{}'
-```
-
-确认 `project_name`、`current_scene`、`readiness` 和运行状态。
-
-如果可能同时打开多个 Godot Editor，先执行：
-
-```bash
 godot-ai call session_manage --args '{"op":"list","params":{}}'
 ```
-
-之后显式传入 `session_id`。对于 `<domain>_manage`，`session_id` 与 `op`、`params` 同级，不放进 `params`。
 
 只要 tool 支持 `scene_file` guard，场景写操作应传入预期场景路径。这样用户在操作过程中切换 Scene 时，写入会以 `EDITED_SCENE_MISMATCH` 失败，而不是误改新 Scene。
 
@@ -112,6 +123,14 @@ script_manage(op="detach")
 ```
 
 创建后使用 tool 返回的真实路径继续操作，不自己推测 Godot 最终命名。
+
+C# `[Export]` 的 Node-derived Inspector 引用使用显式结构化 Node marker，而不是把路径字符串误当成 `res://` Resource：
+
+```json
+{ "__node_path__": "/DemoRootView/TitleScreenView/StartDemoButton" }
+```
+
+写入前先用 `node_get_properties` 检查目标属性的 Object / Node type metadata；`node_set_property` 会在当前 edited scene 内解析该路径并按 Godot Inspector 发布的 Node 类型约束校验兼容性。`Node`、`Control`、`Button`、`AudioStreamPlayer` 等 Node-derived export 都走这一契约，`null` 用于清空引用。Node-valued 属性回读会返回稳定的 edited-scene 路径。
 
 ### Resource
 
@@ -225,10 +244,11 @@ Godot MCP 回读验证 Editor 状态，Git diff 验证磁盘事实；两者不�
 → 目标仓库原有代码工具（如 DevSpace.edit/write）
 
 SceneTree / Inspector / Godot Resource / Script attach
-→ godot-ai CLI
+→ host 暴露的第一类 godot-ai MCP tool
+→ 若 host 没有等价 binding，才 fallback 到 godot-ai CLI
 
 修改后
-→ godot-ai 回读 + 目标仓库测试 + Git diff
+→ godot-ai MCP 回读 + 目标仓库测试 + Git diff
 ```
 
 不要因为 `.tscn/.tres` 本质上是文本格式，就默认使用普通文本编辑器绕过 Godot Editor；除非目标仓库明确规定某类资源必须文本生成，或 godot-ai 当前确实缺少等价能力。
@@ -256,17 +276,18 @@ Agent 负责：
 一次典型修改应接近：
 
 ```text
-1. editor_state
-2. 如有多 Editor：session_manage(list) 并 pin session_id
-3. scene_get_hierarchy
-4. node_get_properties
-5. node_create / node_set_property / node_manage
-6. 如需要：完成 Inspector 绑定或 script_attach
-7. scene_save
-8. scene_get_hierarchy + node_get_properties 回读
-9. logs_read
-10. git status / git diff / git diff --check
-11. 用户做视觉 / 手感实机验收
+1. editor_manage(health)
+2. editor_state
+3. 如有多 Editor：session_manage(list) 并 pin session_id
+4. scene_get_hierarchy
+5. node_get_properties
+6. node_create / node_set_property / node_manage
+7. 如需要：完成 Inspector Node 引用绑定或 script_attach
+8. scene_save
+9. scene_get_hierarchy + node_get_properties 回读
+10. logs_read
+11. git status / git diff / git diff --check
+12. 用户做视觉 / 手感实机验收
 ```
 
 如果中途发现当前 Scene、session 或属性与预期不一致，停止后续写入并重新读取事实，不继续基于旧假设连写。
