@@ -22,6 +22,27 @@ from pydantic import BeforeValidator
 
 DEFER_META: dict[str, object] = {"defer_loading": True}
 
+READ_ONLY_TOOL_ANNOTATIONS: dict[str, bool] = {
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
+}
+
+ADDITIVE_TOOL_ANNOTATIONS: dict[str, bool] = {
+    "readOnlyHint": False,
+    "destructiveHint": False,
+    "idempotentHint": False,
+    "openWorldHint": False,
+}
+
+MUTATING_TOOL_ANNOTATIONS: dict[str, bool] = {
+    "readOnlyHint": False,
+    "destructiveHint": True,
+    "idempotentHint": False,
+    "openWorldHint": False,
+}
+
 
 def _coerce_json(value: Any) -> Any:
     if isinstance(value, str):

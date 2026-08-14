@@ -31,7 +31,7 @@ from fastmcp import Context, FastMCP
 from godot_ai.godot_client.client import GodotCommandError
 from godot_ai.protocol.errors import ErrorCode
 from godot_ai.runtime.direct import DirectRuntime
-from godot_ai.tools import DEFER_META
+from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS
 
 ## Op handlers may be async (the common case) or sync (e.g. session_*).
 ## ``dispatch_manage_op`` awaits the result if it's awaitable. The first
@@ -72,6 +72,8 @@ def register_manage_tool(
     description: str,
     ops: dict[str, OpHandler],
     read_resource_forms: Mapping[str, str | None] | None = None,
+    annotations: Mapping[str, bool] = MUTATING_TOOL_ANNOTATIONS,
+    output_schema: dict[str, Any] | None = None,
 ) -> None:
     """Register a `<domain>_manage` tool that dispatches by op name.
 
@@ -94,6 +96,9 @@ def register_manage_tool(
             exempt from declaration). The lint fails if a read op has
             no entry here, or if the declared URI isn't actually
             registered — catching both new-op drift and phantom-URI typos.
+        output_schema: Optional explicit MCP JSON Schema for the operation-dependent
+            result. When omitted, FastMCP infers the existing permissive schema
+            from the generic ``dict`` return annotation.
 
     Unknown ops raise ``GodotCommandError`` with ``INVALID_PARAMS`` and
     ``data.suggestions`` populated by ``difflib.get_close_matches``.
@@ -157,7 +162,14 @@ def register_manage_tool(
         "Flat op parameters are accepted as a compatibility alias when the client "
         "transmits them; ``op`` and ``session_id`` remain top-level."
     )
-    mcp.tool(meta=DEFER_META)(manage)
+    if output_schema is None:
+        mcp.tool(annotations=dict(annotations), meta=DEFER_META)(manage)
+    else:
+        mcp.tool(
+            annotations=dict(annotations),
+            meta=DEFER_META,
+            output_schema=output_schema,
+        )(manage)
 
 
 def _is_json_shaped(value: str) -> bool:

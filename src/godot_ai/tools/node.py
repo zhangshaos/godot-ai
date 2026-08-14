@@ -12,8 +12,20 @@ from fastmcp import Context, FastMCP
 
 from godot_ai.handlers import node as node_handlers
 from godot_ai.runtime.direct import DirectRuntime
-from godot_ai.tools import DEFER_META
+from godot_ai.tools import (
+    ADDITIVE_TOOL_ANNOTATIONS,
+    DEFER_META,
+    MUTATING_TOOL_ANNOTATIONS,
+    READ_ONLY_TOOL_ANNOTATIONS,
+)
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import (
+    NODE_CREATE_OUTPUT_SCHEMA,
+    NODE_FIND_OUTPUT_SCHEMA,
+    NODE_MANAGE_OUTPUT_SCHEMA,
+    NODE_PROPERTIES_OUTPUT_SCHEMA,
+    NODE_SET_PROPERTY_OUTPUT_SCHEMA,
+)
 
 _DESCRIPTION = """\
 Node tree manipulation (delete, duplicate, rename, reorder, reparent,
@@ -50,7 +62,10 @@ doesn't match.
 
 
 def register_node_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None:
-    @mcp.tool()
+    @mcp.tool(
+        annotations=READ_ONLY_TOOL_ANNOTATIONS,
+        output_schema=NODE_PROPERTIES_OUTPUT_SCHEMA,
+    )
     async def node_get_properties(
         ctx: Context,
         path: str,
@@ -93,7 +108,11 @@ def register_node_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None:
     if not include_non_core:
         return
 
-    @mcp.tool(meta=DEFER_META)
+    @mcp.tool(
+        annotations=ADDITIVE_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+        output_schema=NODE_CREATE_OUTPUT_SCHEMA,
+    )
     async def node_create(
         ctx: Context,
         type: str = "",
@@ -131,7 +150,11 @@ def register_node_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None:
             scene_file=scene_file,
         )
 
-    @mcp.tool(meta=DEFER_META)
+    @mcp.tool(
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+        output_schema=NODE_SET_PROPERTY_OUTPUT_SCHEMA,
+    )
     async def node_set_property(
         ctx: Context,
         path: str,
@@ -178,7 +201,11 @@ def register_node_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None:
             scene_file=scene_file,
         )
 
-    @mcp.tool(meta=DEFER_META)
+    @mcp.tool(
+        annotations=READ_ONLY_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+        output_schema=NODE_FIND_OUTPUT_SCHEMA,
+    )
     async def node_find(
         ctx: Context,
         name: str = "",
@@ -229,4 +256,5 @@ def register_node_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None:
             "get_children": "godot://node/{path*}/children",
             "get_groups": "godot://node/{path*}/groups",
         },
+        output_schema=NODE_MANAGE_OUTPUT_SCHEMA,
     )

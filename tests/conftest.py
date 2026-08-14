@@ -193,14 +193,23 @@ class ServerHarness:
 
 @pytest.fixture
 async def mcp_stack(mcp_ws_port):
-    """Full MCP server + mock Godot plugin connected via FastMCP Client."""
+    """Full MCP server + mock Godot plugin using raw MCP structured results."""
     from fastmcp import Client
 
     from godot_ai.server import create_server
 
+    class StructuredContentClient(Client):
+        """Keep integration assertions on standard MCP JSON, not FastMCP hydration."""
+
+        async def call_tool(self, *args, **kwargs):
+            result = await super().call_tool(*args, **kwargs)
+            if result.structured_content is not None:
+                result.data = result.structured_content
+            return result
+
     port = mcp_ws_port
     mcp = create_server(ws_port=port)
-    async with Client(mcp) as client:
+    async with StructuredContentClient(mcp) as client:
         ws = await websockets.connect(f"ws://127.0.0.1:{port}")
         handshake = {
             "type": "handshake",

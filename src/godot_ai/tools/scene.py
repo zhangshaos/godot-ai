@@ -10,8 +10,14 @@ from fastmcp import Context, FastMCP
 
 from godot_ai.handlers import scene as scene_handlers
 from godot_ai.runtime.direct import DirectRuntime
-from godot_ai.tools import DEFER_META
+from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS, READ_ONLY_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import (
+    SCENE_HIERARCHY_OUTPUT_SCHEMA,
+    SCENE_MANAGE_OUTPUT_SCHEMA,
+    SCENE_OPEN_OUTPUT_SCHEMA,
+    SCENE_SAVE_OUTPUT_SCHEMA,
+)
 
 _DESCRIPTION = """\
 Scene authoring (create, save_as, list open roots).
@@ -31,7 +37,10 @@ Ops:
 
 
 def register_scene_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None:
-    @mcp.tool()
+    @mcp.tool(
+        annotations=READ_ONLY_TOOL_ANNOTATIONS,
+        output_schema=SCENE_HIERARCHY_OUTPUT_SCHEMA,
+    )
     async def scene_get_hierarchy(
         ctx: Context,
         depth: int = 10,
@@ -64,7 +73,11 @@ def register_scene_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None
     if not include_non_core:
         return
 
-    @mcp.tool(meta=DEFER_META)
+    @mcp.tool(
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+        output_schema=SCENE_OPEN_OUTPUT_SCHEMA,
+    )
     async def scene_open(
         ctx: Context,
         path: str,
@@ -96,7 +109,11 @@ def register_scene_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None
         runtime = DirectRuntime.from_context(ctx, session_id=session_id or None)
         return await scene_handlers.scene_open(runtime, path=path, force_reload=force_reload)
 
-    @mcp.tool(meta=DEFER_META)
+    @mcp.tool(
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+        output_schema=SCENE_SAVE_OUTPUT_SCHEMA,
+    )
     async def scene_save(ctx: Context, session_id: str = "") -> dict:
         """Save the currently edited scene to disk.
 
@@ -121,4 +138,5 @@ def register_scene_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None
             ## tree, so it isn't a substitute. No aggregate resource fits.
             "get_roots": None,
         },
+        output_schema=SCENE_MANAGE_OUTPUT_SCHEMA,
     )

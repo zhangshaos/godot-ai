@@ -11,8 +11,9 @@ from fastmcp import Context, FastMCP
 
 from godot_ai.handlers import editor as editor_handlers
 from godot_ai.runtime.direct import DirectRuntime
-from godot_ai.tools import DEFER_META
+from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS, READ_ONLY_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import EDITOR_STATE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Editor selection, performance monitors, quit, log clearing, game eval.
@@ -52,7 +53,10 @@ Ops:
 
 
 def register_editor_tools(mcp: FastMCP, *, include_non_core: bool = True) -> None:
-    @mcp.tool()
+    @mcp.tool(
+        annotations=READ_ONLY_TOOL_ANNOTATIONS,
+        output_schema=EDITOR_STATE_OUTPUT_SCHEMA,
+    )
     async def editor_state(ctx: Context, session_id: str = "") -> dict:
         """Get current Godot editor state: version, readiness, open scene, play state.
 
@@ -85,7 +89,7 @@ def register_editor_tools(mcp: FastMCP, *, include_non_core: bool = True) -> Non
     if not include_non_core:
         return
 
-    @mcp.tool(meta=DEFER_META)
+    @mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, meta=DEFER_META)
     async def logs_read(
         ctx: Context,
         count: int = 50,
@@ -168,7 +172,11 @@ def register_editor_tools(mcp: FastMCP, *, include_non_core: bool = True) -> Non
             include_details=include_details,
         )
 
-    @mcp.tool(output_schema=None, meta=DEFER_META)
+    @mcp.tool(
+        output_schema=None,
+        annotations=MUTATING_TOOL_ANNOTATIONS,
+        meta=DEFER_META,
+    )
     async def editor_screenshot(
         ctx: Context,
         source: str = "viewport",
@@ -244,7 +252,7 @@ def register_editor_tools(mcp: FastMCP, *, include_non_core: bool = True) -> Non
             user_prompt=user_prompt,
         )
 
-    @mcp.tool(meta=DEFER_META)
+    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS, meta=DEFER_META)
     async def editor_reload_plugin(ctx: Context, session_id: str = "") -> dict:
         """Reload the Godot editor plugin.
 

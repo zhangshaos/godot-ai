@@ -15,6 +15,7 @@ from godot_ai.handlers import physics_shape as physics_shape_handlers
 from godot_ai.handlers import resource as resource_handlers
 from godot_ai.handlers import texture as texture_handlers
 from godot_ai.tools._meta_tool import register_manage_tool
+from godot_ai.tools.output_schemas import RESOURCE_MANAGE_OUTPUT_SCHEMA
 
 _DESCRIPTION = """\
 Resource (asset) search, inspection, assignment, and creation. Covers
@@ -92,4 +93,5 @@ def register_resource_tools(mcp: FastMCP) -> None:
             "load": None,
             "get_info": None,
         },
+        output_schema=RESOURCE_MANAGE_OUTPUT_SCHEMA,
     )

@@ -10,7 +10,7 @@ from fastmcp import Context, FastMCP
 
 from godot_ai.handlers import testing as testing_handlers
 from godot_ai.runtime.direct import DirectRuntime
-from godot_ai.tools import DEFER_META
+from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS, READ_ONLY_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
 
 _DESCRIPTION = """\
@@ -26,7 +26,7 @@ Ops:
 
 
 def register_testing_tools(mcp: FastMCP) -> None:
-    @mcp.tool(meta=DEFER_META)
+    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS, meta=DEFER_META)
     async def test_run(
         ctx: Context,
         suite: str = "",
@@ -82,4 +82,5 @@ def register_testing_tools(mcp: FastMCP) -> None:
         read_resource_forms={
             "results_get": "godot://test/results",
         },
+        annotations=READ_ONLY_TOOL_ANNOTATIONS,
     )

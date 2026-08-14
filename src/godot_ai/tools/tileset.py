@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from godot_ai.handlers import tileset as tileset_handlers
+from godot_ai.tools import READ_ONLY_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
 
 _DESCRIPTION = """\
@@ -68,4 +69,5 @@ def register_tileset_tools(mcp: FastMCP) -> None:
             "tileset_get_atlas_tiles": None,
             "tileset_get_atlas_image": None,
         },
+        annotations=READ_ONLY_TOOL_ANNOTATIONS,
     )

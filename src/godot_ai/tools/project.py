@@ -10,7 +10,7 @@ from fastmcp import Context, FastMCP
 
 from godot_ai.handlers import project as project_handlers
 from godot_ai.runtime.direct import DirectRuntime
-from godot_ai.tools import DEFER_META
+from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
 
 _DESCRIPTION = """\
@@ -36,7 +36,7 @@ Ops:
 
 
 def register_project_tools(mcp: FastMCP) -> None:
-    @mcp.tool(meta=DEFER_META)
+    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS, meta=DEFER_META)
     async def project_run(
         ctx: Context,
         mode: str = "main",

@@ -11,7 +11,7 @@ from fastmcp import Context, FastMCP
 
 from godot_ai.handlers import animation as animation_handlers
 from godot_ai.runtime.direct import DirectRuntime
-from godot_ai.tools import DEFER_META
+from godot_ai.tools import DEFER_META, MUTATING_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
 
 _DESCRIPTION = """\
@@ -67,7 +67,7 @@ the relative form already accepts.
 
 
 def register_animation_tools(mcp: FastMCP) -> None:
-    @mcp.tool(meta=DEFER_META)
+    @mcp.tool(annotations=MUTATING_TOOL_ANNOTATIONS, meta=DEFER_META)
     async def animation_create(
         ctx: Context,
         player_path: str,

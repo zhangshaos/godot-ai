@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from godot_ai.handlers import api as api_handlers
+from godot_ai.tools import READ_ONLY_TOOL_ANNOTATIONS
 from godot_ai.tools._meta_tool import register_manage_tool
 
 _DESCRIPTION = """\
@@ -38,4 +39,5 @@ def register_api_tools(mcp: FastMCP) -> None:
         description=_DESCRIPTION,
         ops={"get_class": api_handlers.api_get_class},
         read_resource_forms={"get_class": "godot://class/{class_name}"},
+        annotations=READ_ONLY_TOOL_ANNOTATIONS,
     )
